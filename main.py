@@ -12,7 +12,10 @@ from pytrends.request import TrendReq
 load_dotenv('.env')
 nest_asyncio.apply()
 
-
+#EXAMPLE make API call
+# pageToken = ''
+# url = 'https://www.googleapis.com/youtube/v3/search?key='+API_KEY+"&channelId="+CHANNEL_ID+"&part=snippet,id&order=date&maxResults=10000"+pageToken
+# response = requests.get(url).json()
 
 #%% GET DATA FROM YFINANCE
 sp_wiki_url = "https://en.wikipedia.org/wiki/List_of_S%26P_500_companies"
@@ -21,25 +24,41 @@ sp_df = sp_wiki_df_list[0]
 sp_ticker_list = list(sp_df['Symbol'].values)
 sp_name_list = list(sp_df['Security'].values)
 
-#%% DOWNLOAD FROM YFINANCE
+#%% DOWNLOAD FROM YFINANCE INTO DATAFRAME
 df_sp_values = yf.download(sp_ticker_list, start="2016-01-01")
+
+#%% TAKE ADJ CLOSE VALUES AND TURN INTO DF
+df_sp_price = df_sp_values['Adj Close']
 
 #%% PYTRENDS DATA
 pytrends = TrendReq(hl='en-us')
 dataset = []
 all_keywords = sp_ticker_list
+# pytrends.build_payload(['Apple'], cat=0, timeframe='today 5-y', geo='', gprop='')
+# data = pytrends.interest_over_time()
+# data
+
 for keyword in all_keywords:
-    pytrends.build_payload(kw_list, cat=0, timeframe='today 5-y', geo='', gprop='')
+    pytrends.build_payload([keyword], cat=0, timeframe='today 5-y', geo='', gprop='')
     data = pytrends.interest_over_time()
     if not data.empty:
         data = data.drop(labels='isPartial', axis='columns')
         dataset.append(data)
-dataset
-#%%
-adj_close = df_sp_values['Adj Close']
-adj_close.columns
-len(adj_close['AAPL'])
 
+#%% TRANSFORM DATASET INTO COMPLETE DATAFRAME
+df_sp_searches = dataset[0]
+for i in range(len(dataset)):
+    if i == 0:
+        continue
+    print(i, type(dataset[i]))
+    df_sp_searches = pd.concat([df_sp_searches, dataset[i]], axis=1)
+df_sp_searches
+
+
+#%% A GOOD CHECK TO MAKE SURE DATAFRAMES ALIGN
+print(len(df_sp_price.columns) == len(df_sp_searches.columns))
+
+#%% UPLOAD DATA TO POSTGRESQL DATABASE IN GOOGLE CLOUD
 
 
 # %% 
@@ -68,10 +87,6 @@ def findLocationsOfValueDrop(stock):
 API_KEY = os.getenv('API_KEY')
 CHANNEL_ID = "UCTckA2i1O6aiqdnsYm7jhnQ"
 
-#make API call
-pageToken = ''
-url = 'https://www.googleapis.com/youtube/v3/search?key='+API_KEY+"&channelId="+CHANNEL_ID+"&part=snippet,id&order=date&maxResults=10000"+pageToken
-response = requests.get(url).json()
-response['items']
+
 
 # %%
