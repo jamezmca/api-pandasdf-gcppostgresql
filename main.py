@@ -75,7 +75,8 @@ df_sp_searches.columns = [x.lower().replace(" ", "_")\
 df_sp_searches.axes[0][0]
 print(f'{df_sp_searches.axes[0][0]}'.split(' ')[0])
 
-
+df_sp_prices.loc['2019-08-04']
+# df_sp_prices.loc[f'{df_sp_searches.axes[0][10]}'.split(' ')[0]]
 
 #%%CREATE TABLE SCHEMA
 col_str = 'date DATE, '
