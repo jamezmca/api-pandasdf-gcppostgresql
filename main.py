@@ -72,7 +72,8 @@ df_sp_searches.columns = [x.lower().replace(" ", "_")\
 
 #%% A GOOD CHECK TO MAKE SURE DATAFRAMES ALIGN
 # df_sp_searches['abbott_laboratories']
-df_sp_searches.axes
+df_sp_searches.axes[0][0]
+print(f'{df_sp_searches.axes[0][0]}'.split(' ')[0])
 
 
 
