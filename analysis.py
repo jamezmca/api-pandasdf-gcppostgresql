@@ -20,3 +20,5 @@ def findLocationsOfValueDrop(stock):
 #the average and compute the next value
 
 
+##FINAL OUTPUT DATA WILL BE ACCESSED IN A FRONTEND WEB APPLICATION FROM 
+#POSTGRESQL DB USING GRAPHQL
