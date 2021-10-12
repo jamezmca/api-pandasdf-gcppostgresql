@@ -99,17 +99,14 @@ def typeClean(str):
     str_arr = str.strip().split(',')
     
     for i in range(len(str_arr)):
-        print(f'i is: {i} and: {str_arr[i]}')
-        if str[i] == '': print(i)
-        # if i == 0:
-        #     str_arr[i] = datetime.fromisoformat(str_arr[i])
-        # elif str[i] == None:
-        #     str[i] = None
-        # else:
-        #     print(str_arr[i])
-        #     str_arr[i] = float(str_arr[i])
+        if i == 0:
+            str_arr[i] = datetime.fromisoformat(str_arr[i])
+        elif str_arr[i] == '':
+            str_arr[i] = None
+        else:
+            str_arr[i] = float(str_arr[i])
+    return str_arr
 
-rando = 'date DATE, hump VARCHAR, cool FLOAT'
 
 async def run():
     conn = await asyncpg.connect(user=user, password=password, database=database, host=ip)
