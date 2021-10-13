@@ -116,16 +116,6 @@ def typeClean(str):
             str_arr[i] = float(str_arr[i])
     return str_arr
 
-def dolStrTwo(column): 
-    string = ''
-    col = column[1:]
-    print(col)
-    for val in col:
-        string = string + f"('{val}'), "
-    print(string.strip()[:-1])
-    return string.strip()[:-1]
-
-
 async def run():
     conn = await asyncpg.connect(user=user, password=password, database=database, host=ip)
     print('connected')
