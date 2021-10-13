@@ -25,9 +25,9 @@ nest_asyncio.apply()
 # #  -> UPLOAD TO POSTGRESQL
 def clenseArray(array):
     array = [x.lower().replace(" ", "_")\
-        .replace("-","_").replace("?","_").replace(r"/", "_").replace('.', '')\
+        .replace("-","_").replace("?","_").replace(r"/", "_").replace('.', '').replace("\'s", 's')\
         .replace(")", "").replace(r"(", "").replace("%", "").replace('all', 'all_')\
-        .replace("?", "").replace("\\", "_").replace("$","").replace('&',"and") for x in array]
+        .replace("?", "").replace("\\", "_").replace("$","").replace('&',"and").replace("'", '') for x in array]
     return array
 
 csv_files = []
@@ -35,15 +35,16 @@ for file in os.listdir(os.getcwd()):
     if file.endswith('.csv'):
         csv_files.append(file)
 
-if len(csv_files) == 0:
-    #DOWNLOAD FROM YFINANCE INTO DATAFRAME
-    sp_wiki_url = "https://en.wikipedia.org/wiki/List_of_S%26P_500_companies"
-    sp_wiki_df_list = pd.read_html(sp_wiki_url)
-    sp_df = sp_wiki_df_list[0]
-    sp_ticker_list = list(sp_df['Symbol'].values)
-    sp_name_list = list(sp_df['Security'].values)
-    dictionary = dict(zip(clenseArray(sp_ticker_list), clenseArray(sp_name_list)))
+#CREATE DICTIONARY OF NAMES
+sp_wiki_url = "https://en.wikipedia.org/wiki/List_of_S%26P_500_companies"
+sp_wiki_df_list = pd.read_html(sp_wiki_url)
+sp_df = sp_wiki_df_list[0]
+sp_ticker_list = list(sp_df['Symbol'].values)
+sp_name_list = list(sp_df['Security'].values)
+dictionary = dict(zip(clenseArray(sp_ticker_list), clenseArray(sp_name_list)))
 
+#DOWNLOAD FROM YFINANCE INTO DATAFRAME
+if len(csv_files) == 0:
     df_sp_values = yf.download(sp_ticker_list, start="2016-01-01")
 
     #TAKE ADJ CLOSE VALUES AND TURN INTO DF
@@ -54,9 +55,6 @@ if len(csv_files) == 0:
     pytrends = TrendReq(hl='en-us')
     dataset = []
     all_keywords = sp_name_list
-    # pytrends.build_payload(['Apple'], cat=0, timeframe='today 5-y', geo='', gprop='')
-    # data = pytrends.interest_over_time()
-    # data
 
     for keyword in all_keywords:
         pytrends.build_payload([keyword], cat=0, timeframe='today 5-y', geo='', gprop='')
@@ -76,10 +74,12 @@ if len(csv_files) == 0:
     #SAVE TO CSV FILE
     df_sp_searches.to_csv('df_sp_searches.csv', header=df_sp_searches.columns, index=True , encoding='utf-8')
     df_sp_prices.to_csv('df_sp_prices.csv', header=df_sp_prices.columns, index=True , encoding='utf-8')
-else: 
-    df_sp_prices = pd.read_csv('df_sp_prices.csv')
-    df_sp_searches = pd.read_csv('df_sp_searches.csv')
 
+#START OF NON-OPTIONAL CODE
+df_sp_prices = pd.read_csv('df_sp_prices.csv')
+df_sp_searches = pd.read_csv('df_sp_searches.csv')
+
+df_sp_prices
 #CREATE TABLE SCHEMA
 col_str = 'date DATE, '
 for stock_label in df_sp_prices.columns:
@@ -87,12 +87,6 @@ for stock_label in df_sp_prices.columns:
 col_str = col_str[:-2]
 
 ivd = {v: k for k, v in dictionary.items()}
-
-col_str_two = 'date DATE, '
-for stock_label in df_sp_searches.columns:
-    col_str_two = col_str_two + f'{ivd[stock_label]} ' + 'FLOAT, '
-col_str_two = col_str_two[:-2]
-
 
 #UPLOAD DATA TO POSTGRESQL DATABASE IN GOOGLE CLOUD
 #USER AUTH FOR GOOGLE CLOUD DATABASE FROM ENVIRONMENT VARIABLES
@@ -153,15 +147,6 @@ async def run():
     )
     print(result, 'import to sp_prices complete')
 
-    # copy searches to table using insert if header
-    # equals dictionary translation
-    df_sp_searches = pd.read_csv('df_sp_searches.csv')
-    for col in df_sp_searches.columns:
-        print(col)
-        await conn.execute(f'''
-            INSERT INTO sp_searches ({ivd[col] if col != 'date' else 'date'})
-            VALUES {dolStrTwo(df_sp_searches[col].values)};
-        ''')
 
     await conn.close() #close the connection
 loop = asyncio.get_event_loop() #can also make single line
@@ -169,20 +154,7 @@ loop.run_until_complete(run())
 print('all tables successfully imported')
 
 #%% make a copy of thing and remake table and run until it works
-async def run():
-    conn = await asyncpg.connect(user=user, password=password, database=database, host=ip)
-    print('connected')
-    await conn.execute(f'DROP TABLE IF EXISTS sp_searches')
-    await conn.execute(f'''
-        CREATE TABLE sp_searches (
-            {col_str}
-        );
-    ''')
-    print('sp_searches was created successfully')
 
-    await conn.close() #close the connection
-asyncio.get_event_loop().run_until_complete(run())
-print('all tables successfully imported')
 #%% practice
 
 rando = {
@@ -215,7 +187,88 @@ async def run():
 asyncio.get_event_loop().run_until_complete(run())
 print('all tables successfully imported')
 # %%
+col_str = ''
+for stock_label in df_sp_prices.columns:
+    if stock_label.lower() == 'date':
+        col_str = col_str + f'{stock_label.lower()} ' + 'DATE, ' 
+    else:
+        col_str = col_str + f'{stock_label} ' + 'FLOAT, ' 
+col_str = col_str[:-2]
+
+col_str_two = ''
+for stock_label in df_sp_searches.columns:
+    if stock_label.lower() == 'date':
+        col_str_two = col_str_two + f'{stock_label.lower()} ' + 'DATE, ' 
+    elif stock_label == '3m':
+        col_str_two = col_str_two + f'"{stock_label.lower()}" ' + 'FLOAT, ' 
+    elif stock_label == "kellogg's":
+        col_str_two = col_str_two + f'kelloggs ' + 'FLOAT, ' 
+    elif stock_label == "lowe's":
+        col_str_two = col_str_two + f'lowes ' + 'FLOAT, ' 
+    elif stock_label == "mcdonald's":
+        col_str_two = col_str_two + f'mcdonalds ' + 'FLOAT, ' 
+    elif stock_label == "moody's_corporation":
+        col_str_two = col_str_two + f'moodys_corporation ' + 'FLOAT, ' 
+    elif stock_label == "o'reilly_automotive":
+        col_str_two = col_str_two + f'oreilly_automotive ' + 'FLOAT, ' 
+    elif stock_label == "people's_united_financial":
+        col_str_two = col_str_two + f'peoples_united_financial ' + 'FLOAT, ' 
+    elif stock_label == "domino\'s_pizza":
+        col_str_two = col_str_two + f'dominos_pizza ' + 'FLOAT, ' 
+    else:
+        col_str_two = col_str_two + f'{stock_label} ' + 'FLOAT, ' 
+col_str_two = col_str_two[:-2]
+col_str_two
 
 # %%
-dictionary['amzn']
+async def run():
+    conn = await asyncpg.connect(user=user, password=password, database=database, host=ip)
+    print('connected')
+    await conn.execute(f'DROP TABLE IF EXISTS sp_searches')
+    await conn.execute(f'''
+        CREATE TABLE sp_searches (
+            {col_str_two}
+        );
+    ''')
+    print('sp_searches was created successfully')
+
+    await conn.close() #close the connection
+asyncio.get_event_loop().run_until_complete(run())
+print('all tables successfully imported')
+# %%
+async def run():
+    conn = await asyncpg.connect(user=user, password=password, database=database, host=ip)
+    print('connected')
+    values = []
+    with open('df_sp_searches.csv', 'r') as f:
+        next(f)
+        for row in f:
+            print(row)
+            values.append(tuple(typeClean(row)))
+    print(values)
+    result = await conn.copy_records_to_table(
+        'sp_searches', records=values
+    )
+    print(result, 'import to sp_searches complete')
+
+    await conn.close() #close the connection
+asyncio.get_event_loop().run_until_complete(run())
+print('all tables successfully imported')
+
+
+# %%
+dictionary['Date'] = 'date'
+newOrder = [dictionary[x] if x in dictionary else x for x in df_sp_prices]
+print(df_sp_prices.columns[309])
+print(newOrder[309])
+dataframeTwo = df_sp_searches[newOrder]
+print(len(df_sp_searches.columns), len(df_sp_prices.columns))
+
+# df_sp_searches_two = df_sp_searches[[]]
+
+
+# %%
+print('date' == 'Date')
+# %%
+'domino\'s_pizza'.replace("\'s", 's')
 # %%
