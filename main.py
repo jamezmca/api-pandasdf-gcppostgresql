@@ -86,6 +86,15 @@ for stock_label in df_sp_prices.columns:
     col_str = col_str + f'{stock_label} ' + 'FLOAT, ' 
 col_str = col_str[:-2]
 
+col_str_two = ''
+for stock_label in df_sp_searches.columns:
+    if stock_label.lower() == 'date':
+        col_str_two = col_str_two + f'{stock_label.lower()} ' + 'DATE, ' 
+    else:
+        col_str_two = col_str_two + f'{stock_label} ' + 'FLOAT, ' 
+col_str_two = col_str_two[:-2]
+col_str_two
+
 ivd = {v: k for k, v in dictionary.items()}
 
 #UPLOAD DATA TO POSTGRESQL DATABASE IN GOOGLE CLOUD
@@ -130,7 +139,7 @@ async def run():
     print('sp_prices was created successfully')
     await conn.execute(f'''
             CREATE TABLE sp_searches (
-                {col_str}
+                {col_str_two}
             );
         ''')
     print('sp_searches was created successfully')
@@ -147,128 +156,19 @@ async def run():
     )
     print(result, 'import to sp_prices complete')
 
+    valuesTwo = []
+    with open('df_sp_searches.csv', 'r') as f:
+        next(f)
+        for row in f:
+            print(row)
+            valuesTwo.append(tuple(typeClean(row)))
+    result = await conn.copy_records_to_table(
+        'sp_searches', records=valuesTwo
+    )
+    print(result, 'import to sp_searches complete')
+
 
     await conn.close() #close the connection
 loop = asyncio.get_event_loop() #can also make single line
 loop.run_until_complete(run())
 print('all tables successfully imported')
-
-#%% make a copy of thing and remake table and run until it works
-
-#%% practice
-
-rando = {
-    'date': "('2014-09-03'), ('2020-05-07'), ('2018-03-21'), ('1999-04-06')",
-    'bananas': '(1), (2), (4), (8)',
-    'hello': '(0), (1), (1), (2)',
-    'cookie': '(1), (3), (5), (7)'
-}
-
-async def run():
-    conn = await asyncpg.connect(user=user, password=password, database=database, host=ip)
-    print('connected')
-    await conn.execute(f'DROP TABLE IF EXISTS practice')
-    await conn.execute(f'''
-        CREATE TABLE practice (
-            date DATE,
-            bananas INT,
-            hello INT,
-            cookie INT
-        );
-    ''')
-    print('practice was created successfully')
-    for col in ['date', 'bananas', 'hello', 'cookie']:
-        print(col)
-        await conn.execute(f'''
-            INSERT INTO practice ({col})
-            VALUES {rando[col]};
-        ''')
-    await conn.close() #close the connection
-asyncio.get_event_loop().run_until_complete(run())
-print('all tables successfully imported')
-# %%
-col_str = ''
-for stock_label in df_sp_prices.columns:
-    if stock_label.lower() == 'date':
-        col_str = col_str + f'{stock_label.lower()} ' + 'DATE, ' 
-    else:
-        col_str = col_str + f'{stock_label} ' + 'FLOAT, ' 
-col_str = col_str[:-2]
-
-col_str_two = ''
-for stock_label in df_sp_searches.columns:
-    if stock_label.lower() == 'date':
-        col_str_two = col_str_two + f'{stock_label.lower()} ' + 'DATE, ' 
-    elif stock_label == '3m':
-        col_str_two = col_str_two + f'"{stock_label.lower()}" ' + 'FLOAT, ' 
-    elif stock_label == "kellogg's":
-        col_str_two = col_str_two + f'kelloggs ' + 'FLOAT, ' 
-    elif stock_label == "lowe's":
-        col_str_two = col_str_two + f'lowes ' + 'FLOAT, ' 
-    elif stock_label == "mcdonald's":
-        col_str_two = col_str_two + f'mcdonalds ' + 'FLOAT, ' 
-    elif stock_label == "moody's_corporation":
-        col_str_two = col_str_two + f'moodys_corporation ' + 'FLOAT, ' 
-    elif stock_label == "o'reilly_automotive":
-        col_str_two = col_str_two + f'oreilly_automotive ' + 'FLOAT, ' 
-    elif stock_label == "people's_united_financial":
-        col_str_two = col_str_two + f'peoples_united_financial ' + 'FLOAT, ' 
-    elif stock_label == "domino\'s_pizza":
-        col_str_two = col_str_two + f'dominos_pizza ' + 'FLOAT, ' 
-    else:
-        col_str_two = col_str_two + f'{stock_label} ' + 'FLOAT, ' 
-col_str_two = col_str_two[:-2]
-col_str_two
-
-# %%
-async def run():
-    conn = await asyncpg.connect(user=user, password=password, database=database, host=ip)
-    print('connected')
-    await conn.execute(f'DROP TABLE IF EXISTS sp_searches')
-    await conn.execute(f'''
-        CREATE TABLE sp_searches (
-            {col_str_two}
-        );
-    ''')
-    print('sp_searches was created successfully')
-
-    await conn.close() #close the connection
-asyncio.get_event_loop().run_until_complete(run())
-print('all tables successfully imported')
-# %%
-async def run():
-    conn = await asyncpg.connect(user=user, password=password, database=database, host=ip)
-    print('connected')
-    values = []
-    with open('df_sp_searches.csv', 'r') as f:
-        next(f)
-        for row in f:
-            print(row)
-            values.append(tuple(typeClean(row)))
-    print(values)
-    result = await conn.copy_records_to_table(
-        'sp_searches', records=values
-    )
-    print(result, 'import to sp_searches complete')
-
-    await conn.close() #close the connection
-asyncio.get_event_loop().run_until_complete(run())
-print('all tables successfully imported')
-
-
-# %%
-dictionary['Date'] = 'date'
-newOrder = [dictionary[x] if x in dictionary else x for x in df_sp_prices]
-print(df_sp_prices.columns[309])
-print(newOrder[309])
-dataframeTwo = df_sp_searches[newOrder]
-print(len(df_sp_searches.columns), len(df_sp_prices.columns))
-
-# df_sp_searches_two = df_sp_searches[[]]
-
-
-# %%
-print('date' == 'Date')
-# %%
-'domino\'s_pizza'.replace("\'s", 's')
-# %%
