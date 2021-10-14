@@ -1,4 +1,16 @@
 # %% IMPORT FROM POSTGRESQL AND RUN DATA ANALYSIS
+import os
+import numpy as np
+import pandas as pd
+import asyncio
+import nest_asyncio
+import asyncpg
+from dotenv import load_dotenv
+load_dotenv('.env')
+nest_asyncio.apply()
+#START OF NON-OPTIONAL CODE
+df_sp_prices = pd.read_csv('df_sp_prices.csv')
+df_sp_searches = pd.read_csv('df_sp_searches.csv')
 ##ASSUMPTIONS
 #Intraday losses greater than 20% are unlikely to be a market failure
 # and are more probably a single stock failure

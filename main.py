@@ -1,9 +1,7 @@
 # %% Import libararies
-from datetime import datetime
 import os
 import numpy as np
 import pandas as pd
-from pandas.core.algorithms import isin
 import pytrends
 import yfinance as yf
 import requests
