@@ -98,22 +98,64 @@ def findNearestDate(searchesDates, dat): #finds the closest day in the search ar
             delta = abs(diff.days)
     return closestDay
     
-def findNormalizedSearchValue(stock, endDate):
+def findNormalizedSearchValue(stock, endDate, dataframe):
     #finds the current search interest of a stock over
-    #the last two weeks as compared to the last 2 months
-    print(stock, endDate)
+    #the last two weeks as compared to the last 3 months
+    num = 12 #weekly results to 12 weeks is 3 months
+    if stock in dataframe:
+        stockSearches = dataframe[stock]
+        # print(stockSearches)
+        indexOfEndDate = list(dataframe['date']).index(endDate)
+        # indexOfEndDate = stockSearches.index(endDate)
+        lastThreeMonths = stockSearches[indexOfEndDate - 12 : indexOfEndDate+1]
+        #going to compare last two weeks to average of last three months exclusive of last two weeks
+        average = np.mean(lastThreeMonths[:-2])
+        return np.mean(lastThreeMonths[-2:]) / average
+    print('No search data for this time period')
+    return None
 
 negGradSearches = dict()
 #negGradSearches = {amzn: {endDate as i: normalized value, endDate2 as i2: normalized value}}
 # ivd = {v: k for k, v in dictionary.to_dict('series').items()}
 
 for stock in negGradsForAllStocks:
-    print(stock)
     for dip in negGradsForAllStocks[stock]:
         particularDip = negGradsForAllStocks[stock][dip]
         closestSearchDate = findNearestDate(df_sp_searches['date'], df_sp_prices['Date'][particularDip['minIndex']])
-        # findNormalizedSearchValue(ivd[stock], closestSearchDate)
+        normalizedSeachValue = findNormalizedSearchValue(newDict[stock], closestSearchDate, df_sp_searches)
+        if stock in negGradSearches:
+            negGradSearches[stock][df_sp_prices['Date'][particularDip['minIndex']]] = normalizedSeachValue 
+        else:
+            negGradSearches[stock] = {}
+            negGradSearches[stock][df_sp_prices['Date'][particularDip['minIndex']]] = normalizedSeachValue 
 
+
+#%% BASELINE CHECk FOR STOCK RECOVERY - CHECK VALUE AFTER 3 MONTHS
+dates = df_sp_prices['Date']
+amazonExample = negGradsForAllStocks['amzn']
+monthsLaterPercentages = list()
+howManyDaysLater = 60
+countDips = 0
+for stock in negGradsForAllStocks:
+    for dip in negGradsForAllStocks[stock].values():
+        countDips += 1
+        if dip['minIndex']+60 < len(dates):
+            monthsLaterPercentages.append(df_sp_prices[stock][dip['minIndex']+howManyDaysLater] / dip['min'])
+            print(df_sp_prices[stock][dip['minIndex']+howManyDaysLater], dip['min'])
+        else:
+            monthsLaterPercentages.append(df_sp_prices[stock][len(dates)-1] / dip['min'])
+
+
+#%%
+suma = 0.00
+numOfLoses = 0
+for percent in list(monthsLaterPercentages):
+    if not math.isnan(percent):
+        suma += percent
+        if percent < 1:
+            numOfLoses += 1
+print(suma / len(monthsLaterPercentages))
+print(len(negGradsForAllStocks), suma / len(monthsLaterPercentages), numOfLoses*100/len(monthsLaterPercentages))
 #%%
 
 ##ASSUMPTIONS
@@ -173,7 +215,10 @@ practiceArray = pd.Series([0, 1, 3, 5, 10, 7, 8, 7, 5, 11, 11, 12.5, 5, 9, 6, 15
 # %%
 negGradsForAllStocks['amzn']
 # %%
-print(type(dictionary))
 # %%
+
+# %%
+for name in df_sp_searches.columns:
+    print(name)
 
 # %%
