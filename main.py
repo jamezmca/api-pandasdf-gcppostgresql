@@ -19,13 +19,13 @@ nest_asyncio.apply()
 # url = 'https://www.googleapis.com/youtube/v3/search?key='+API_KEY+"&channelId="+CHANNEL_ID+"&part=snippet,id&order=date&maxResults=10000"+pageToken
 # response = requests.get(url).json()
 
-#%% FETCH DATA FROM YFINANCE & PYTRENDS AND CLEAN OR CSV
+#FETCH DATA FROM YFINANCE & PYTRENDS AND CLEAN OR CSV
 # #  -> UPLOAD TO POSTGRESQL
 def clenseArray(array):
     array = [x.lower().replace(" ", "_")\
         .replace("-","_").replace("?","_").replace(r"/", "_").replace('.', '').replace("\'s", 's')\
         .replace(")", "").replace(r"(", "").replace("%", "").replace('all', 'all_')\
-        .replace("?", "").replace("\\", "_").replace("$","").replace('&',"and").replace("'", '') for x in array]
+        .replace("?", "").replace("\\", "_").replace("$","").replace('&',"and").replace("'", '').replace("3m", '"3m"') for x in array]
     return array
 
 csv_files = []
@@ -42,9 +42,8 @@ sp_name_list = list(sp_df['Security'].values)
 dictionary = dict(zip(clenseArray(sp_ticker_list), clenseArray(sp_name_list)))
 df = pd.DataFrame.from_dict(dictionary, orient="index")
 df.to_csv("dictionary.csv")
-
-#DOWNLOAD FROM YFINANCE INTO DATAFRAME
-if len(csv_files) == 0:
+#%%DOWNLOAD FROM YFINANCE INTO DATAFRAME
+if len(csv_files) == 0 or len(csv_files) == 1:
     df_sp_values = yf.download(sp_ticker_list, start="2016-01-01")
 
     #TAKE ADJ CLOSE VALUES AND TURN INTO DF
@@ -57,7 +56,7 @@ if len(csv_files) == 0:
     all_keywords = sp_name_list
 
     for keyword in all_keywords:
-        pytrends.build_payload([keyword], cat=0, timeframe='today 5-y', geo='', gprop='')
+        pytrends.build_payload([keyword], cat=0, timeframe='today 5-y', geo='', gprop='news')
         data = pytrends.interest_over_time()
         if not data.empty:
             data = data.drop(labels='isPartial', axis='columns')
@@ -75,27 +74,11 @@ if len(csv_files) == 0:
     df_sp_searches.to_csv('df_sp_searches.csv', header=df_sp_searches.columns, index=True , encoding='utf-8')
     df_sp_prices.to_csv('df_sp_prices.csv', header=df_sp_prices.columns, index=True , encoding='utf-8')
 
+#%%
 #START OF NON-OPTIONAL CODE
+data_sets = ['df_sp_prices.csv', 'df_sp_searches.csv']
 df_sp_prices = pd.read_csv('df_sp_prices.csv')
 df_sp_searches = pd.read_csv('df_sp_searches.csv')
-
-df_sp_prices
-#CREATE TABLE SCHEMA
-col_str = 'date DATE, '
-for stock_label in df_sp_prices.columns:
-    col_str = col_str + f'{stock_label} ' + 'FLOAT, ' 
-col_str = col_str[:-2]
-
-col_str_two = ''
-for stock_label in df_sp_searches.columns:
-    if stock_label.lower() == 'date':
-        col_str_two = col_str_two + f'{stock_label.lower()} ' + 'DATE, ' 
-    else:
-        col_str_two = col_str_two + f'{stock_label} ' + 'FLOAT, ' 
-col_str_two = col_str_two[:-2]
-col_str_two
-
-ivd = {v: k for k, v in dictionary.items()}
 
 #UPLOAD DATA TO POSTGRESQL DATABASE IN GOOGLE CLOUD
 #USER AUTH FOR GOOGLE CLOUD DATABASE FROM ENVIRONMENT VARIABLES
@@ -103,6 +86,23 @@ user = os.getenv("USERNAME")
 password = os.getenv("PASSWORD")
 database = os.getenv("DATABASE")
 ip = os.getenv("PUBLICIP")
+
+def createTableSchema(dataf):
+    col_str_two = ''
+    for stock_label in dataf.columns:
+        print(stock_label)
+        if stock_label.lower() == 'date':
+            print('howdy')
+            col_str_two = col_str_two + f'{stock_label.lower()} ' + 'DATE, ' 
+        elif stock_label == "'3m'":
+            print('hi')
+            col_str_two = col_str_two + f'"{stock_label.lower()[1:-1]}" ' + 'FLOAT, '  
+        else:
+            print('ahoha')
+            col_str_two = col_str_two + f'{stock_label} ' + 'FLOAT, ' 
+
+    print('done')
+    return col_str_two[:-2]
 
 def typeClean(str):
     str_arr = str.strip().split(',')
@@ -116,49 +116,43 @@ def typeClean(str):
             str_arr[i] = float(str_arr[i])
     return str_arr
 
-async def run():
-    conn = await asyncpg.connect(user=user, password=password, database=database, host=ip)
-    print('connected')
-    await conn.execute(f'DROP TABLE IF EXISTS sp_prices')
-    await conn.execute(f'DROP TABLE IF EXISTS sp_searches')
-    await conn.execute(f'''
-            CREATE TABLE sp_prices (
-                {col_str}
-            );
-        ''')
-    print('sp_prices was created successfully')
-    await conn.execute(f'''
-            CREATE TABLE sp_searches (
-                {col_str_two}
-            );
-        ''')
-    print('sp_searches was created successfully')
+for dataset in data_sets:
+    if dataset not in csv_files:
+        tblName = dataset[3:-4]
+        async def run():
+            conn = await asyncpg.connect(user=user, password=password, database=database, host=ip)
+            print('connected')
+            await conn.execute(f'DROP TABLE IF EXISTS {tblName}')
+            await conn.execute(f'''
+                    CREATE TABLE {tblName} (
+                        {createTableSchema(eval(dataset[0:-4]))}
+                    );
+                ''')
+            print(f'{tblName} was created successfully')
+            # copy prices to table using price header
+            values = []
+            with open(dataset, 'r') as f:
+                next(f)
+                for row in f:
+                    values.append(tuple(typeClean(row)))
+                
+            result = await conn.copy_records_to_table(
+                tblName, records=values
+            )
+            print(result, f'import to {tblName} complete')
 
-    # copy prices to table using price header
-    values = []
-    with open('df_sp_prices.csv', 'r') as f:
-        next(f)
-        for row in f:
-            values.append(tuple(typeClean(row)))
-        
-    result = await conn.copy_records_to_table(
-        'sp_prices', records=values
-    )
-    print(result, 'import to sp_prices complete')
+            await conn.close() #close the connection
+        loop = asyncio.get_event_loop() #can also make single line
+        loop.run_until_complete(run())
+        print('all tables successfully imported')
 
-    valuesTwo = []
-    with open('df_sp_searches.csv', 'r') as f:
-        next(f)
-        for row in f:
-            print(row)
-            valuesTwo.append(tuple(typeClean(row)))
-    result = await conn.copy_records_to_table(
-        'sp_searches', records=valuesTwo
-    )
-    print(result, 'import to sp_searches complete')
+# %%
+csv_files
+# %%
+data_sets = ['df_sp_prices.csv', 'df_sp_searches.csv']
 
-
-    await conn.close() #close the connection
-loop = asyncio.get_event_loop() #can also make single line
-loop.run_until_complete(run())
-print('all tables successfully imported')
+# %%
+data_sets[0][:-4]
+# %%
+eval(data_sets[0][:-4])
+# %%

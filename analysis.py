@@ -59,12 +59,17 @@ def findLocationsOfValueDrop(array, analysisRange, decrement):
     prevMax = None
     prevMin = None
     for val in list(negGrads):
-        if prevMax != None:
+        # print(prevMin is not None)
+        if prevMax is not None:
             if negGrads[val]['max'] == prevMax and negGrads[val]['min'] == prevMin:
+                print(len(negGrads), val)
                 negGrads.pop(val, None)
+                print(len(negGrads), val)
         else: 
             prevMax = negGrads[val]['max']
             prevMin = negGrads[val]['min']
+            # print(prevMin)
+        print('next stock')
 
 
     return negGrads
@@ -79,13 +84,16 @@ dec = 1.2 #signifies a 20 percent drop
 negGradsForAllStocks = {}
 for stock in df_sp_prices:
     if stock != 'date' and stock != 'Date':
-        print(stock)
+        # print(stock)
         negGradsForAllStocks[stock] = findLocationsOfValueDrop(df_sp_prices[stock], analysisRange, dec)
 sum = 0
 for stock in negGradsForAllStocks:
     sum += len(negGradsForAllStocks[stock])
-print(f'The total number of negative gradient segments in the last 5 years of every stock in the S&P500 is: {sum}')
+print(f'The total number of negative gradient segments in the last 5 years\n of every stock in the S&P500 is: {sum}')
+print(f'With an analysis range of {xRange} weeks')
 
+#%%
+negGradsForAllStocks['aapl']
 #%% for searches compare current two weeks to avg of last 2 - 6 months
 def findNearestDate(searchesDates, dat): #finds the closest day in the search array
     delta = 3000
@@ -100,17 +108,18 @@ def findNearestDate(searchesDates, dat): #finds the closest day in the search ar
     
 def findNormalizedSearchValue(stock, endDate, dataframe):
     #finds the current search interest of a stock over
-    #the last two weeks as compared to the last 3 months
-    num = 12 #weekly results to 12 weeks is 3 months
+    #the last two weeks as compared to the last # months
+    num = 6 #weekly results is num / 4 is months
     if stock in dataframe:
         stockSearches = dataframe[stock]
         # print(stockSearches)
         indexOfEndDate = list(dataframe['date']).index(endDate)
         # indexOfEndDate = stockSearches.index(endDate)
-        lastThreeMonths = stockSearches[indexOfEndDate - 12 : indexOfEndDate+1]
+        lastThreeMonths = stockSearches[indexOfEndDate - num : indexOfEndDate+1]
         #going to compare last two weeks to average of last three months exclusive of last two weeks
-        average = np.mean(lastThreeMonths[:-2])
-        return np.mean(lastThreeMonths[-2:]) / average
+        average = np.mean(lastThreeMonths[:-4])
+        print('successful search data')
+        return np.mean(lastThreeMonths[-4:-1]) / average
     print('No search data for this time period')
     return None
 
@@ -134,18 +143,73 @@ for stock in negGradsForAllStocks:
 dates = df_sp_prices['Date']
 amazonExample = negGradsForAllStocks['amzn']
 monthsLaterPercentages = list()
+threeMonthReturn = dict()
+returnPercentages = dict() #histogram of percentage returns
+returnSearches = dict()
+returnSearchesAverages = dict()
 howManyDaysLater = 60
 countDips = 0
+maxReturns = None
+minReturns = None
+naanIndex = []
 for stock in negGradsForAllStocks:
+    if stock not in threeMonthReturn:
+        threeMonthReturn[stock] = {}
+        if stock in negGradSearches:
+            stockSearches = negGradSearches[stock]
     for dip in negGradsForAllStocks[stock].values():
         countDips += 1
         if dip['minIndex']+60 < len(dates):
-            monthsLaterPercentages.append(df_sp_prices[stock][dip['minIndex']+howManyDaysLater] / dip['min'])
-            print(df_sp_prices[stock][dip['minIndex']+howManyDaysLater], dip['min'])
+            returnPerc = df_sp_prices[stock][dip['minIndex']+howManyDaysLater] / dip['min']
+            if math.isnan(returnPerc):
+                naanIndex.append([stock, dip['minIndex']])
+                continue
+            monthsLaterPercentages.append(returnPerc)
+            threeMonthReturn[stock][dip['minIndex']] = returnPerc
+            returnPercentages[f'{str(returnPerc)[:3]}'] = returnPercentages.get(f'{str(returnPerc)[:3]}', 0.00) + 1 
+
+            if stock in negGradSearches and isinstance(stockSearches[dates[dip['minIndex']]], float) and not math.isnan(stockSearches[dates[dip['minIndex']]]) and stockSearches[dates[dip['minIndex']]] < 1000 and stockSearches[dates[dip['minIndex']]] != 0:
+                if f'{str(returnPerc)[:3]}' not in returnSearches:
+                    returnSearches[f'{str(returnPerc)[:3]}'] = []
+                returnSearches[f'{str(returnPerc)[:3]}'].append(stockSearches[dates[dip['minIndex']]])
+
+            if maxReturns == None:
+                maxReturns = {'stock': stock, 'returnVal': returnPerc, 'date': df_sp_prices['Date'][dip['minIndex']], '3month': df_sp_prices[stock][dip['minIndex']+howManyDaysLater], 'min': dip['min']}
+                minReturns = {'stock': stock, 'returnVal': returnPerc, 'date': df_sp_prices['Date'][dip['minIndex']], '3month': df_sp_prices[stock][dip['minIndex']+howManyDaysLater], 'min': dip['min']}
+            elif returnPerc > maxReturns['returnVal']:
+                maxReturns = {'stock': stock, 'returnVal': returnPerc, 'date': df_sp_prices['Date'][dip['minIndex']], '3month': df_sp_prices[stock][dip['minIndex']+howManyDaysLater], 'min': dip['min']}
+            elif returnPerc < minReturns['returnVal']:
+                minReturns = {'stock': stock, 'returnVal': returnPerc, 'date': df_sp_prices['Date'][dip['minIndex']], '3month': df_sp_prices[stock][dip['minIndex']+howManyDaysLater], 'min': dip['min']}
         else:
-            monthsLaterPercentages.append(df_sp_prices[stock][len(dates)-1] / dip['min'])
+            returnPerc = df_sp_prices[stock][len(dates)-1] / dip['min']
+            if math.isnan(returnPerc):
+                print(stock, dip)
+            monthsLaterPercentages.append(returnPerc)
+            threeMonthReturn[stock][dip['minIndex']] = returnPerc
+            returnPercentages[f'{str(returnPerc)[:3]}'] = returnPercentages.get(f'{str(returnPerc)[:3]}', 0) + 1
+
+            if stock in negGradSearches and isinstance(stockSearches[dates[dip['minIndex']]], float) and not math.isnan(stockSearches[dates[dip['minIndex']]]):
+                if f'{str(returnPerc)[:3]}' not in returnSearches:
+                    returnSearches[f'{str(returnPerc)[:3]}'] = []
+                returnSearches[f'{str(returnPerc)[:3]}'].append(stockSearches[dates[dip['minIndex']]])
+
+returnPercentages = {k: v for k, v in sorted(returnPercentages.items(), key=lambda item: item[0])}
+returnSearches = {k: v for k, v in sorted(returnSearches.items(), key=lambda item: item[0])}
+
+#filter return searches for the same search period as it means outliers could affect data
+for val in returnSearches:
+    newList = list()
+    for chur in  returnSearches[val]:
+        if chur not in newList:
+            newList.append(chur)
+    returnSearches[val] = newList
 
 
+for i in range(len(list(returnSearches))):
+    total = 0
+    for val in returnSearches[list(returnSearches)[i]]:
+        total += val
+    returnSearchesAverages[list(returnSearches)[i]] = total / len(returnSearches[list(returnSearches)[i]])
 #%%
 suma = 0.00
 numOfLoses = 0
@@ -157,7 +221,80 @@ for percent in list(monthsLaterPercentages):
 print(suma / len(monthsLaterPercentages))
 print(suma / len(monthsLaterPercentages), numOfLoses*100/len(monthsLaterPercentages), countDips)
 #%%
+threeMonthReturn
 
+#%%
+maxReturns
+
+#%%
+minReturns
+#%%
+returnSearches
+#%%
+returnPercentages
+
+#%%
+returnSearchesAverages
+#if the searches are below 
+#%%
+returnStats = np.array(monthsLaterPercentages)
+med = np.median(returnStats)
+med
+
+#%%
+negGradSearches
+#%%PLOTTING
+import matplotlib.pyplot as plt
+labels = returnSearchesAverages.keys()
+men_means = returnSearchesAverages.values()
+women_means = returnPercentages.values()
+
+x = np.arange(len(labels))  # the label locations
+width = 0.35  # the width of the bars
+
+fig, ax = plt.subplots()
+rects1 = ax.bar(x - width/2, men_means, width, label='Searches')
+
+# Add some text for labels, title and custom x-axis tick labels, etc.
+ax.set_ylabel('Searches')
+ax.set_title('Searches')
+ax.set_xticks(x)
+ax.set_xticklabels(labels)
+ax.legend()
+
+ax.bar_label(rects1, padding=3)
+
+fig.tight_layout()
+
+plt.show()
+
+#%%PLOTTING
+import matplotlib.pyplot as plt
+labels = returnSearchesAverages.keys()
+men_means = returnSearchesAverages.values()
+women_means = returnPercentages.values()
+
+x = np.arange(len(labels))  # the label locations
+x = [2*i for i in x]
+
+width = 0.35  # the width of the bars
+
+fig, ax = plt.subplots()
+rects2 = ax.bar(x, women_means, width, label='Prices')
+
+# Add some text for labels, title and custom x-axis tick labels, etc.
+ax.set_ylabel('Returns')
+ax.set_title('Num of Returns')
+ax.set_xticks(x)
+ax.set_xticklabels(labels)
+ax.legend()
+
+ax.bar_label(rects2, padding=3)
+fig.tight_layout()
+plt.figure(figsize=(10, 3))  # width:10, height:8
+
+plt.show()
+#%%
 ##ASSUMPTIONS
 #Intraday losses greater than 20% are unlikely to be a market failure
 # and are more probably a single stock failure
@@ -216,7 +353,7 @@ practiceArray = pd.Series([0, 1, 3, 5, 10, 7, 8, 7, 5, 11, 11, 12.5, 5, 9, 6, 15
 negGradsForAllStocks['amzn']
 # %%
 # %%
-print(max(monthsLaterPercentages))
+print(min(monthsLaterPercentages))
 # %%
 for name in df_sp_searches.columns:
     print(name)
