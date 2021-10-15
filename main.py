@@ -40,6 +40,8 @@ sp_df = sp_wiki_df_list[0]
 sp_ticker_list = list(sp_df['Symbol'].values)
 sp_name_list = list(sp_df['Security'].values)
 dictionary = dict(zip(clenseArray(sp_ticker_list), clenseArray(sp_name_list)))
+df = pd.DataFrame.from_dict(dictionary, orient="index")
+df.to_csv("dictionary.csv")
 
 #DOWNLOAD FROM YFINANCE INTO DATAFRAME
 if len(csv_files) == 0:
