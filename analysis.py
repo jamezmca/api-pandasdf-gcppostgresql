@@ -155,7 +155,7 @@ for percent in list(monthsLaterPercentages):
         if percent < 1:
             numOfLoses += 1
 print(suma / len(monthsLaterPercentages))
-print(len(negGradsForAllStocks), suma / len(monthsLaterPercentages), numOfLoses*100/len(monthsLaterPercentages))
+print(suma / len(monthsLaterPercentages), numOfLoses*100/len(monthsLaterPercentages), countDips)
 #%%
 
 ##ASSUMPTIONS
@@ -216,7 +216,7 @@ practiceArray = pd.Series([0, 1, 3, 5, 10, 7, 8, 7, 5, 11, 11, 12.5, 5, 9, 6, 15
 negGradsForAllStocks['amzn']
 # %%
 # %%
-
+print(max(monthsLaterPercentages))
 # %%
 for name in df_sp_searches.columns:
     print(name)
