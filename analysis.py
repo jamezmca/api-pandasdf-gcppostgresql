@@ -13,6 +13,7 @@ nest_asyncio.apply()
 #START OF NON-OPTIONAL CODE
 df_sp_prices = pd.read_csv('df_sp_prices.csv')
 df_sp_searches = pd.read_csv('df_sp_searches.csv')
+df_sp_price = pd.read_csv('df_sp_price.csv')
 dictionary = pd.read_csv('dictionary.csv')
 newDict = {}
 for row in dictionary.values:
@@ -55,7 +56,7 @@ def findLocationsOfValueDrop(array, analysisRange, decrement):
                         'maxIndex': maxIndex}
     negGrads = {k:v for (k,v) in gradients.items() if v['perc'] > decrement and v['grad'] < 0}
 
-    #clean if refering to exact same drop
+    #clean return if refering to exact same drop
     prevMax = None
     prevMin = None
     for val in list(negGrads):
@@ -70,8 +71,6 @@ def findLocationsOfValueDrop(array, analysisRange, decrement):
             prevMin = negGrads[val]['min']
             # print(prevMin)
         print('next stock')
-
-
     return negGrads
 
 
@@ -106,7 +105,8 @@ def findNearestDate(searchesDates, dat): #finds the closest day in the search ar
             delta = abs(diff.days)
     return closestDay
     
-def findNormalizedSearchValue(stock, endDate, dataframe):
+#need to fix this so it doesn't return dud values!!!!!!!!!!!!! can't return nan, inf, Nonetype, only float
+def findNormalizedSearchValue(stock, endDate, dataframe): 
     #finds the current search interest of a stock over
     #the last two weeks as compared to the last # months
     num = 6 #weekly results is num / 4 is months
@@ -141,17 +141,20 @@ for stock in negGradsForAllStocks:
 
 #%% BASELINE CHECk FOR STOCK RECOVERY - CHECK VALUE AFTER 3 MONTHS
 dates = df_sp_prices['Date']
-amazonExample = negGradsForAllStocks['amzn']
 monthsLaterPercentages = list()
 threeMonthReturn = dict()
 returnPercentages = dict() #histogram of percentage returns
 returnSearches = dict()
 returnSearchesAverages = dict()
+dateHistogram = dict()
+dateHistogramRanges = dict()
 howManyDaysLater = 60
 countDips = 0
+countSearches = 0
 maxReturns = None
 minReturns = None
 naanIndex = []
+coolObj = []
 for stock in negGradsForAllStocks:
     if stock not in threeMonthReturn:
         threeMonthReturn[stock] = {}
@@ -167,13 +170,14 @@ for stock in negGradsForAllStocks:
             monthsLaterPercentages.append(returnPerc)
             threeMonthReturn[stock][dip['minIndex']] = returnPerc
             returnPercentages[f'{str(returnPerc)[:3]}'] = returnPercentages.get(f'{str(returnPerc)[:3]}', 0.00) + 1 
+            
 
             if (stock in negGradSearches) and isinstance(stockSearches[dates[dip['minIndex']]], float) and (not math.isnan(stockSearches[dates[dip['minIndex']]])) and not (math.isinf(stockSearches[dates[dip['minIndex']]])) and (stockSearches[dates[dip['minIndex']]] != 0):
-
+                coolObj.append([returnPerc, stockSearches[dates[dip['minIndex']]]])
                 if f'{str(returnPerc)[:3]}' not in returnSearches:
                     returnSearches[f'{str(returnPerc)[:3]}'] = []
                 returnSearches[f'{str(returnPerc)[:3]}'].append(stockSearches[dates[dip['minIndex']]])
-                
+
             if maxReturns == None:
                 maxReturns = {'stock': stock, 'returnVal': returnPerc, 'date': df_sp_prices['Date'][dip['minIndex']], '3month': df_sp_prices[stock][dip['minIndex']+howManyDaysLater], 'min': dip['min']}
                 minReturns = {'stock': stock, 'returnVal': returnPerc, 'date': df_sp_prices['Date'][dip['minIndex']], '3month': df_sp_prices[stock][dip['minIndex']+howManyDaysLater], 'min': dip['min']}
@@ -192,7 +196,9 @@ for stock in negGradsForAllStocks:
                 if f'{str(returnPerc)[:3]}' not in returnSearches:
                     returnSearches[f'{str(returnPerc)[:3]}'] = []
                 returnSearches[f'{str(returnPerc)[:3]}'].append(stockSearches[dates[dip['minIndex']]])
+                coolObj.append([returnPerc, stockSearches[dates[dip['minIndex']]]])
 
+#order the objects
 returnPercentages = {k: v for k, v in sorted(returnPercentages.items(), key=lambda item: item[0])}
 returnSearches = {k: v for k, v in sorted(returnSearches.items(), key=lambda item: item[0])}
 
@@ -204,30 +210,44 @@ returnSearches = {k: v for k, v in sorted(returnSearches.items(), key=lambda ite
 #             newList.append(chur)
 #     returnSearches[val] = newList
 
-
 for i in range(len(list(returnSearches))):
     total = 0
     for val in returnSearches[list(returnSearches)[i]]:
         total += val
     returnSearchesAverages[list(returnSearches)[i]] = total / len(returnSearches[list(returnSearches)[i]])
-#%%
-suma = 0.00
-numOfLoses = 0
-for percent in list(monthsLaterPercentages):
-    if not math.isnan(percent):
-        suma += percent
-        if percent < 1:
-            numOfLoses += 1
-print(suma / len(monthsLaterPercentages))
-print(suma / len(monthsLaterPercentages), numOfLoses*100/len(monthsLaterPercentages), countDips)
-#%%
-threeMonthReturn
 
+#if dates have more than a 50% overlap with dates in average max-min histogram, increment count in histograms where key is the average date range(start and finish) which is stored in a separate  dictionary
+#key keys showing all the start and end days that overlap with the average and then become part of the average
+#%% PROCESS ANY UNWANTED DATA IE REMOVING LOW SIGNIFICANCE RETURNS
+#Remove outlier search values > 5
+#Remove any return multipliers > 3
+coolObj = [[x[0], x[1]] for x in coolObj if x[1] < 5 and x[0] < 3 and x[1] > 0.5 and x[0] > 0.6]
+
+print(f'datasize is {len(coolObj)} pairs longs')
+
+#MAYBE MAKE A LOG TRANSFORMATION ON SEARCH INDEX OR A SQUAREROOT TRANSFORMATION PERHAPS
+#%%Make scatter plot of multiplier vs searches dataframe
+relationshipDF = pd.DataFrame(np.array(coolObj), columns=['multiplier', 'normSearch'])
+
+plt.xlabel('Normalized searches')
+# plt.xlim(0, 4)
+# plt.ylim(0, 3)
+plt.ylabel('Return Mulitplier')
+plt.scatter(relationshipDF.normSearch, relationshipDF.multiplier)
+#%% ONE SAMPLE T-TESTING TO FIND P-VALUE
+#need to do indepedance, Equality of variance and normality of data / residuals
+#make a scatter plot for each return and the associated search value and a line of best fit
+#could use an object or a dataframe
+
+relationshipDF.describe()
+# relationshipDF.head(10)
+
+#%%
+min(relationshipDF['normSearch'])
 #%%
 maxReturns
-
 #%%
-minReturns
+countSearches
 #%%
 returnSearches
 #%%
@@ -270,30 +290,7 @@ plt.show()
 
 #%%PLOTTING
 import matplotlib.pyplot as plt
-labels = returnSearchesAverages.keys()
-men_means = returnSearchesAverages.values()
-women_means = returnPercentages.values()
 
-x = np.arange(len(labels))  # the label locations
-x = [2*i for i in x]
-
-width = 0.35  # the width of the bars
-
-fig, ax = plt.subplots()
-rects2 = ax.bar(x, women_means, width, label='Prices')
-
-# Add some text for labels, title and custom x-axis tick labels, etc.
-ax.set_ylabel('Returns')
-ax.set_title('Num of Returns')
-ax.set_xticks(x)
-ax.set_xticklabels(labels)
-ax.legend()
-
-ax.bar_label(rects2, padding=3)
-fig.tight_layout()
-plt.figure(figsize=(10, 3))  # width:10, height:8
-
-plt.show()
 #%%
 ##ASSUMPTIONS
 #Intraday losses greater than 20% are unlikely to be a market failure

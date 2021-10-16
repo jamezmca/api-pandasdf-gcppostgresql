@@ -43,15 +43,18 @@ dictionary = dict(zip(clenseArray(sp_ticker_list), clenseArray(sp_name_list)))
 df = pd.DataFrame.from_dict(dictionary, orient="index")
 df.to_csv("dictionary.csv")
 #%%DOWNLOAD FROM YFINANCE INTO DATAFRAME
-if len(csv_files) == 0 or len(csv_files) == 1:
-    
+if 'df_sp_prices.csv' not in csv_files:
     df_sp_values = yf.download(sp_ticker_list, start="2016-01-01")
 
     #TAKE ADJ CLOSE VALUES AND TURN INTO DF
     df_sp_prices = df_sp_values['Adj Close']
     df_sp_prices.columns = clenseArray(df_sp_prices.columns)
 
-    #DOWNLOAD FROM PYTRENDS INTO DF
+    #SAVE TO CSV FILE
+    df_sp_prices.to_csv('df_sp_prices.csv', header=df_sp_prices.columns, index=True , encoding='utf-8')
+
+if 'df_sp_searches.csv' not in csv_files:
+#DOWNLOAD FROM PYTRENDS INTO DF
     pytrends = TrendReq(hl='en-us')
     dataset = []
     all_keywords = sp_name_list
@@ -73,12 +76,22 @@ if len(csv_files) == 0 or len(csv_files) == 1:
 
     #SAVE TO CSV FILE
     df_sp_searches.to_csv('df_sp_searches.csv', header=df_sp_searches.columns, index=True , encoding='utf-8')
-    df_sp_prices.to_csv('df_sp_prices.csv', header=df_sp_prices.columns, index=True , encoding='utf-8')
+
+if 'df_sp_price.csv' not in csv_files:
+    df_sp_value = yf.download('^GSPC', start="2016-01-01")
+
+    #TAKE ADJ CLOSE VALUES AND TURN INTO DF
+    df_sp_price = pd.DataFrame(df_sp_value['Adj Close']).reset_index()
+    df_sp_price.columns = ['date', 'price']
+
+    #SAVE TO CSV FILE
+    df_sp_price.to_csv('df_sp_price.csv', header=df_sp_price.columns, index=False , encoding='utf-8')
 
 #%%
 #START OF NON-OPTIONAL CODE
-data_sets = ['df_sp_prices.csv', 'df_sp_searches.csv']
+data_sets = ['df_sp_prices.csv', 'df_sp_searches.csv', 'df_sp_price.csv']
 df_sp_prices = pd.read_csv('df_sp_prices.csv')
+df_sp_price = pd.read_csv('df_sp_price.csv')
 df_sp_searches = pd.read_csv('df_sp_searches.csv')
 
 #UPLOAD DATA TO POSTGRESQL DATABASE IN GOOGLE CLOUD
@@ -90,6 +103,7 @@ ip = os.getenv("PUBLICIP")
 
 def createTableSchema(dataf):
     col_str_two = ''
+    print(dataf.columns)
     for stock_label in dataf.columns:
         print(stock_label)
         if stock_label.lower() == 'date':
@@ -149,6 +163,7 @@ for dataset in data_sets:
 
 # %%
 csv_files
+
 # %%
 data_sets = ['df_sp_prices.csv', 'df_sp_searches.csv']
 
