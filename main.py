@@ -44,6 +44,7 @@ df = pd.DataFrame.from_dict(dictionary, orient="index")
 df.to_csv("dictionary.csv")
 #%%DOWNLOAD FROM YFINANCE INTO DATAFRAME
 if len(csv_files) == 0 or len(csv_files) == 1:
+    
     df_sp_values = yf.download(sp_ticker_list, start="2016-01-01")
 
     #TAKE ADJ CLOSE VALUES AND TURN INTO DF
@@ -56,7 +57,7 @@ if len(csv_files) == 0 or len(csv_files) == 1:
     all_keywords = sp_name_list
 
     for keyword in all_keywords:
-        pytrends.build_payload([keyword], cat=0, timeframe='today 5-y', geo='', gprop='news')
+        pytrends.build_payload([keyword], cat=0, timeframe='today 5-y', geo='', gprop='')
         data = pytrends.interest_over_time()
         if not data.empty:
             data = data.drop(labels='isPartial', axis='columns')

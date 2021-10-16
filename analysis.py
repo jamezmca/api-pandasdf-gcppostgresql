@@ -117,9 +117,9 @@ def findNormalizedSearchValue(stock, endDate, dataframe):
         # indexOfEndDate = stockSearches.index(endDate)
         lastThreeMonths = stockSearches[indexOfEndDate - num : indexOfEndDate+1]
         #going to compare last two weeks to average of last three months exclusive of last two weeks
-        average = np.mean(lastThreeMonths[:-4])
+        average = np.mean(lastThreeMonths[:-2])
         print('successful search data')
-        return np.mean(lastThreeMonths[-4:-1]) / average
+        return np.mean(lastThreeMonths[:-1]) / average
     print('No search data for this time period')
     return None
 
@@ -168,11 +168,12 @@ for stock in negGradsForAllStocks:
             threeMonthReturn[stock][dip['minIndex']] = returnPerc
             returnPercentages[f'{str(returnPerc)[:3]}'] = returnPercentages.get(f'{str(returnPerc)[:3]}', 0.00) + 1 
 
-            if stock in negGradSearches and isinstance(stockSearches[dates[dip['minIndex']]], float) and not math.isnan(stockSearches[dates[dip['minIndex']]]) and stockSearches[dates[dip['minIndex']]] < 1000 and stockSearches[dates[dip['minIndex']]] != 0:
+            if (stock in negGradSearches) and isinstance(stockSearches[dates[dip['minIndex']]], float) and (not math.isnan(stockSearches[dates[dip['minIndex']]])) and not (math.isinf(stockSearches[dates[dip['minIndex']]])) and (stockSearches[dates[dip['minIndex']]] != 0):
+
                 if f'{str(returnPerc)[:3]}' not in returnSearches:
                     returnSearches[f'{str(returnPerc)[:3]}'] = []
                 returnSearches[f'{str(returnPerc)[:3]}'].append(stockSearches[dates[dip['minIndex']]])
-
+                
             if maxReturns == None:
                 maxReturns = {'stock': stock, 'returnVal': returnPerc, 'date': df_sp_prices['Date'][dip['minIndex']], '3month': df_sp_prices[stock][dip['minIndex']+howManyDaysLater], 'min': dip['min']}
                 minReturns = {'stock': stock, 'returnVal': returnPerc, 'date': df_sp_prices['Date'][dip['minIndex']], '3month': df_sp_prices[stock][dip['minIndex']+howManyDaysLater], 'min': dip['min']}
@@ -181,14 +182,13 @@ for stock in negGradsForAllStocks:
             elif returnPerc < minReturns['returnVal']:
                 minReturns = {'stock': stock, 'returnVal': returnPerc, 'date': df_sp_prices['Date'][dip['minIndex']], '3month': df_sp_prices[stock][dip['minIndex']+howManyDaysLater], 'min': dip['min']}
         else:
+
             returnPerc = df_sp_prices[stock][len(dates)-1] / dip['min']
-            if math.isnan(returnPerc):
-                print(stock, dip)
             monthsLaterPercentages.append(returnPerc)
             threeMonthReturn[stock][dip['minIndex']] = returnPerc
             returnPercentages[f'{str(returnPerc)[:3]}'] = returnPercentages.get(f'{str(returnPerc)[:3]}', 0) + 1
 
-            if stock in negGradSearches and isinstance(stockSearches[dates[dip['minIndex']]], float) and not math.isnan(stockSearches[dates[dip['minIndex']]]):
+            if (stock in negGradSearches) and isinstance(stockSearches[dates[dip['minIndex']]], float) and (not math.isnan(stockSearches[dates[dip['minIndex']]])) and not (math.isinf(stockSearches[dates[dip['minIndex']]])) and (stockSearches[dates[dip['minIndex']]] != 0):
                 if f'{str(returnPerc)[:3]}' not in returnSearches:
                     returnSearches[f'{str(returnPerc)[:3]}'] = []
                 returnSearches[f'{str(returnPerc)[:3]}'].append(stockSearches[dates[dip['minIndex']]])
@@ -197,12 +197,12 @@ returnPercentages = {k: v for k, v in sorted(returnPercentages.items(), key=lamb
 returnSearches = {k: v for k, v in sorted(returnSearches.items(), key=lambda item: item[0])}
 
 #filter return searches for the same search period as it means outliers could affect data
-for val in returnSearches:
-    newList = list()
-    for chur in  returnSearches[val]:
-        if chur not in newList:
-            newList.append(chur)
-    returnSearches[val] = newList
+# for val in returnSearches:
+#     newList = list()
+#     for chur in  returnSearches[val]:
+#         if chur not in newList and not math.isinf(chur):
+#             newList.append(chur)
+#     returnSearches[val] = newList
 
 
 for i in range(len(list(returnSearches))):
