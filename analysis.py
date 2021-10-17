@@ -122,7 +122,7 @@ def findNormalizedSearchValue(stock, endDate, dataframe):
         #going to compare last two weeks to average of last three months exclusive of last two weeks
         average = np.mean(lastThreeMonths[:-2])
         # print('successful search data')
-        return np.mean(lastThreeMonths[:-1]) / average
+        return np.mean(lastThreeMonths[:-1]) / (average if average != 0 else 1)  #need to fix this cell
     # print(stock)
     # print('No search data for this time period')
     return None
@@ -172,6 +172,7 @@ coolObj = []
 def datesOverlap(histo, datesHisto, dip, stock): #needs to take the stock to make sure im not double counting the stock but should still average dates
     #could just add a third varibale to ranges which pushes the stock 
     # print(histo)
+    # a nice idea but what i actually want to do is create week bins and just histogram them for every stock drop
     def hasOverLap(maxIndex, minIndex, datesToCheckMax, datesToCheckMin):
         #datesIndex = [dates2Max, dates2Min] from key.split(' ')
         halfLength = datesToCheckMin - datesToCheckMax
