@@ -8,6 +8,7 @@ import nest_asyncio
 import asyncpg
 from dotenv import load_dotenv
 from datetime import date
+import matplotlib.pyplot as plt #change to plotly
 load_dotenv('.env')
 nest_asyncio.apply()
 #START OF NON-OPTIONAL CODE
@@ -20,7 +21,10 @@ for row in dictionary.values:
     newDict[row[0]] = row[1]
 print('Successfully imported csv files :)')
 
+#List all functions here i think
 
+
+#CHANGE FROM NEWS TO ALL SEARCHES AND RERUN CURRENT ANALYSIS IN MAIN.PY
 # %%
 # starts at zero and searches finds the max and min of the adjacent 20%
 # for max and min and creates gradient, saves locations to object, and then moves onto
@@ -63,14 +67,13 @@ def findLocationsOfValueDrop(array, analysisRange, decrement):
         # print(prevMin is not None)
         if prevMax is not None:
             if negGrads[val]['max'] == prevMax and negGrads[val]['min'] == prevMin:
-                print(len(negGrads), val)
+                # print(len(negGrads), val)
                 negGrads.pop(val, None)
-                print(len(negGrads), val)
+                # print(len(negGrads), val)
         else: 
             prevMax = negGrads[val]['max']
             prevMin = negGrads[val]['min']
-            # print(prevMin)
-        print('next stock')
+        # print('next stock')
     return negGrads
 
 
@@ -118,9 +121,10 @@ def findNormalizedSearchValue(stock, endDate, dataframe):
         lastThreeMonths = stockSearches[indexOfEndDate - num : indexOfEndDate+1]
         #going to compare last two weeks to average of last three months exclusive of last two weeks
         average = np.mean(lastThreeMonths[:-2])
-        print('successful search data')
+        # print('successful search data')
         return np.mean(lastThreeMonths[:-1]) / average
-    print('No search data for this time period')
+    # print(stock)
+    # print('No search data for this time period')
     return None
 
 negGradSearches = dict()
@@ -138,7 +142,7 @@ for stock in negGradsForAllStocks:
             negGradSearches[stock] = {}
             negGradSearches[stock][df_sp_prices['Date'][particularDip['minIndex']]] = normalizedSeachValue 
 
-
+print(f'finito for negGradSearches len: {len(negGradSearches.keys())}')
 #%% BASELINE CHECk FOR STOCK RECOVERY - CHECK VALUE AFTER 3 MONTHS
 dates = df_sp_prices['Date']
 monthsLaterPercentages = list()
@@ -147,7 +151,8 @@ returnPercentages = dict() #histogram of percentage returns
 returnSearches = dict()
 returnSearchesAverages = dict()
 dateHistogram = dict()
-dateHistogramRanges = dict()
+dateHistogramRanges = dict() #holds an array of the keys that it averages to 
+#create a final date for eg {"15 28": {max: [index1, index2]}, min: [index1, index2]}
 howManyDaysLater = 60
 countDips = 0
 countSearches = 0
@@ -155,13 +160,89 @@ maxReturns = None
 minReturns = None
 naanIndex = []
 coolObj = []
+
+
+#first check if dates do overlap significantly
+#then compare it to the returns maybe by how much they overlap
+#then compare it to a straight true or false overlap
+#then check how much above and beyond the avg individual return was above s&p500
+#also just baseline the s&p500 return after 3 months and compare to all stock averages
+#also need to filter out mad values in all stock answers before averaging
+#also check if snp500 experienced any of these drops above just the min of (30%)? of individual stocks for example
+def datesOverlap(histo, datesHisto, dip, stock): #needs to take the stock to make sure im not double counting the stock but should still average dates
+    #could just add a third varibale to ranges which pushes the stock 
+    # print(histo)
+    def hasOverLap(maxIndex, minIndex, datesToCheckMax, datesToCheckMin):
+        #datesIndex = [dates2Max, dates2Min] from key.split(' ')
+        halfLength = datesToCheckMin - datesToCheckMax
+        bongo = False
+        #dates1 is maxIndex: 53 minIndex: 62
+        #create halfLength2 = dates2Max - dates2Min
+        #check if maxIndex > dates2Max + length2 & maxIndex < dates2min
+        if maxIndex >= datesToCheckMax and maxIndex <= datesToCheckMax + halfLength:
+            bongo = True
+        #check if minIndex < dates2Min & dates2Max + length2 < minIndex
+        if minIndex <= datesToCheckMin and minIndex >= datesToCheckMin - halfLength:
+            bongo = True
+        #check if dates1 has overlap with dates2
+        return bongo
+    newHisto = {}
+    newDatesHisto = {}
+    if len(list(histo)) > 0:
+        print(len(list(histo)))
+        for dateRange in histo:
+            datesToCheckMax = int(dateRange.split(' ')[0])
+            datesToCheckMin = int(dateRange.split(' ')[1])
+            if hasOverLap(dip['maxIndex'], dip["minIndex"], datesToCheckMax, datesToCheckMin):
+                # print(dateRange, f"{dip['maxIndex']} {dip['minIndex']}")
+                datesHisto[f"{datesToCheckMax} {datesToCheckMin}"]['max'].append(dip['maxIndex']) 
+                datesHisto[f"{datesToCheckMax} {datesToCheckMin}"]['min'].append(dip['minIndex']) 
+                #create new and save with old
+                    #make vars first
+                newMaxIndex = math.floor(np.average(np.array(datesHisto[f"{datesToCheckMax} {datesToCheckMin}"]['max'])))
+                newMinIndex = math.ceil(np.average(np.array(datesHisto[f"{datesToCheckMax} {datesToCheckMin}"]['min'])))
+                newDatesHisto[f'{newMaxIndex} {newMinIndex}'] = {'max': datesHisto[f"{datesToCheckMax} {datesToCheckMin}"]['max'], 'min': datesHisto[f"{datesToCheckMax} {datesToCheckMin}"]['min']}
+                #del old
+                # del datesHisto[f"{datesToCheckMax} {datesToCheckMin}"]
+                #create new histo
+                newHisto[f'{newMaxIndex} {newMinIndex}'] = histo.get(f"{datesToCheckMax} {datesToCheckMin}", 0) + 1
+                # del histo[f"{datesToCheckMax} {datesToCheckMin}"]
+
+            else:
+                newHisto = dict(histo)
+                newDatesHisto = dict(datesHisto)
+                newHisto[f"{dip['maxIndex']} {dip['minIndex']}"] = 1 #histo.get(oldkey, 0) + 1
+                newDatesHisto[f"{dip['maxIndex']} {dip['minIndex']}"] = {'max': [dip['maxIndex']], 'min': [dip['minIndex']]} #histo.get(oldkey, 0) + 1
+                
+
+            #append and then init new histo key to old histo and return histo here
+    else: 
+        newHisto[f"{dip['maxIndex']} {dip['minIndex']}"] = 1 #histo.get(oldkey, 0) + 1
+        newDatesHisto[f"{dip['maxIndex']} {dip['minIndex']}"] = {'max': [dip['maxIndex']], 'min': [dip['minIndex']]} #histo.get(oldkey, 0) + 1
+    #checks current histogram for more than a 50% overlap in dates and if none
+    #creates a new range, else
+    #increments count for current range and changes the key name to be the new average
+    #taken from the list histogram which also gets a new name and del old key
+
+
+    #add in new index "maxIndex minIndex" key and set count to 1 and push to dateHistoRanges
+    #returns the new histogram 
+    return newHisto, newDatesHisto
+
+
+
 for stock in negGradsForAllStocks:
+    print(stock)
     if stock not in threeMonthReturn:
         threeMonthReturn[stock] = {}
         if stock in negGradSearches:
             stockSearches = negGradSearches[stock]
     for dip in negGradsForAllStocks[stock].values():
+        # print(dateHistogram)
+        dateHistogram, dateHistogramRanges = datesOverlap(dateHistogram, dateHistogramRanges, dip, stock)
+        # print(dateHistogram)
         countDips += 1
+        # print(dip)
         if dip['minIndex']+60 < len(dates):
             returnPerc = df_sp_prices[stock][dip['minIndex']+howManyDaysLater] / dip['min']
             if math.isnan(returnPerc):
@@ -201,7 +282,6 @@ for stock in negGradsForAllStocks:
 #order the objects
 returnPercentages = {k: v for k, v in sorted(returnPercentages.items(), key=lambda item: item[0])}
 returnSearches = {k: v for k, v in sorted(returnSearches.items(), key=lambda item: item[0])}
-
 #filter return searches for the same search period as it means outliers could affect data
 # for val in returnSearches:
 #     newList = list()
@@ -245,7 +325,7 @@ relationshipDF.describe()
 #%%
 min(relationshipDF['normSearch'])
 #%%
-maxReturns
+len(df_sp_searches.columns)
 #%%
 countSearches
 #%%
@@ -256,6 +336,9 @@ returnPercentages
 #%%
 returnSearchesAverages
 #if the searches are below 
+
+#%%
+dateHistogramRanges
 #%%
 returnStats = np.array(monthsLaterPercentages)
 med = np.median(returnStats)
@@ -354,5 +437,7 @@ print(min(monthsLaterPercentages))
 # %%
 for name in df_sp_searches.columns:
     print(name)
+
+# %%
 
 # %%
