@@ -2,6 +2,8 @@
 import os
 import numpy as np
 import pandas as pd
+import scipy as sp
+from scipy import stats, optimize, interpolate
 import math
 import asyncio
 import nest_asyncio
@@ -209,4 +211,6 @@ p = np.poly1d(np.polyfit(ham_df['Interconnectedness'], ham_df['Return Multiplier
 # %%
 p
 # %%
-import
+regr_results = sp.stats.linregress(ham_df['Interconnectedness'], ham_df['Return Multiplier'])
+print(regr_results)
+# %%
