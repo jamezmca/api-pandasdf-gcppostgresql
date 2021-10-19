@@ -214,3 +214,5 @@ p
 regr_results = sp.stats.linregress(ham_df['Interconnectedness'], ham_df['Return Multiplier'])
 print(regr_results)
 # %%
+ham_df.describe()
+# %%
