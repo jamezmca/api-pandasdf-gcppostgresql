@@ -11,6 +11,7 @@ import asyncpg
 from dotenv import load_dotenv
 from datetime import date
 import plotly.express as px
+from plotly.subplots import make_subplots
 load_dotenv('.env')
 nest_asyncio.apply()
 
@@ -65,6 +66,13 @@ def findOverlappingWeeks(wklyBinIndexes, maxIndex, minIndex):
             bongo.append(key)
     return bongo
 
+def sp500AvgPrice(werkbins, dollares):
+    james = dict()
+    for werk in werkbins:
+        avgPrice = np.mean(np.array(dollares[int(werk.split(' ')[0]): int(werk.split(' ')[1])]) )
+        james[werk] = avgPrice
+    return james
+
 def findLocationsOfValueDrop(array, analysisRange, decrement, stack, how_many_days_later, week_bins): #FIND ALL STATS IN HERE AND MAKE IT A BUNCH OF SMALLER FUNCTIONS AND ALSO INCLUDE WHICHEVER DATE BINS IT'S IN
     gradients = {}
     length = len(array)
@@ -100,7 +108,6 @@ def findLocationsOfValueDrop(array, analysisRange, decrement, stack, how_many_da
                     week_bins[week][1][stack] = multiplier
     return gradients, week_bins
 
-
 # %% PART 1: FIND LOCATIONS OF NEGATIVE GRADIENT 
 yearsToWeeks = 5 * 52
 xRange = yearsToWeeks * analysisRange
@@ -112,9 +119,43 @@ negGradsForAllStocks = {}
 for stock in df_sp_prices:
     if stock != 'date' and stock != 'Date':
         negGradsForAllStocks[stock], weekBins = findLocationsOfValueDrop(df_sp_prices[stock], analysisRange, dec, stock, howManyDaysLater, weekBins)
-print(f'finished part 1 for analysis range: {xRange} weeks')
 # print(f'The total number of negative gradient segments in the last 5 years\n of every stock in the S&P500 is: {sum} \nWith an analysis range of {xRange} weeks.')
+allStocksWeekBinsCount = {x:y[0] for x,y in weekBins.items()}
 
+spWkBins = initializeWeekBins(dates)
+negGradsForSP500, spWkBins = findLocationsOfValueDrop(df_sp_price['price'], analysisRange, dec, 'S&P500', howManyDaysLater, spWkBins)
+spAvgPricePerWkBin = sp500AvgPrice(spWkBins, df_sp_price['price'])
+
+print(f'finished part 1 for analysis range: {xRange} weeks')
+
+#%% PART 3: CREATE THE INVERSE OF THE ABOVE SO PERCENTILES FOR AN INTERCONNECTEDNESS AND PERCENTILES OF THE RETURN VALUE LIST
+weekBins
+interconnectednessHistogram = dict()
+for wek in weekBins.values():
+    interCon = wek[0]
+    if interCon in interconnectednessHistogram:
+        interconnectednessHistogram[interCon]['list'].append(list(wek[1].values())) 
+        listItems = np.array(interconnectednessHistogram[interCon]['list'])
+        interconnectednessHistogram[interCon]['listLength'] = len(listItems)
+        interconnectednessHistogram[interCon]['mean'] = np.mean(np.array(listItems))
+        interconnectednessHistogram[interCon]['median'] = np.median(np.array(listItems))
+        interconnectednessHistogram[interCon]['LQ'] = np.quantile(np.array(listItems), 0.25)
+        interconnectednessHistogram[interCon]['UQ'] = np.quantile(np.array(listItems), 0.75)
+        interconnectednessHistogram[interCon]['5th'] = np.quantile(np.array(listItems), 0.05)
+    else:
+        listItems = list(wek[1].values())
+        if len(listItems) > 0:
+            npyarray = np.array(listItems)
+            interconnectednessHistogram[interCon] = {
+                'list': listItems,
+                'listLength': len(listItems), 
+                'mean': np.mean(npyarray),
+                'median': np.median(npyarray),
+                'LQ': np.quantile(npyarray, 0.25),
+                'UQ': np.quantile(npyarray, 0.75),
+                '5th': np.quantile(npyarray, 0.05)
+            }
+        
 
 #%% PART 2: FROM WEEKBINS, CREATE A HISTOGRAM DICT THAT LISTS EVERY RETURN, AND A LIST OF ALL THE SHARED NUM OF ENTRIES (interconnectedness)
 multiplierNumWeeks = dict()
@@ -152,8 +193,6 @@ for multiplier in multiplierNumWeeksAverage:
                                         '5th': [multiplierNumWeeksAverage[multiplier]]}
 
 MultiplierHistogramFiltered = {k:v for k,v in multiplerHistogram.items() if k > 0.6 and k < 2}
-#%% PART 2: COMPARES LATEST SEARCHES TO THE HISTORICAL AVERAGE OVER A GREATER PERIOD OF TIME
-print(list(MultiplierHistogramFiltered))
 #%% PART 3: BASELINE CHECk FOR STOCK RECOVERY - CHECK VALUE AFTER 3 MONTHS
 
 
@@ -186,16 +225,8 @@ print(list(MultiplierHistogramFiltered))
 #-
 #-
 #-
-#%%PLOTTING NUM OF SHARED DROPS WITH RETURN FROM
-cheese = [[x,v['mean']] for x,v in MultiplierHistogramFiltered.items()]
 
-cheese_df = pd.DataFrame(cheese, columns=['Return Multiplier', 'Interconnectedness'])
-cheese_df.describe()
-fig = px.scatter(cheese_df, x="Interconnectedness", y="Return Multiplier")
-fig.show()
-
-
-# %% PLOTTING S&P500 VALUE AGAINST 
+#%% PLOT - TOTAL DATA PLOT WITH STATISTICAL ANALYSIS 
 ham = [[x, w] for x,w in {k:v for k,v in multiplierNumWeeksAverage.items() if k > 0.6 and k < 2}.items()]
 
 ham_df = pd.DataFrame(ham, columns=['Return Multiplier', 'Interconnectedness'])
@@ -203,16 +234,56 @@ ham_df.describe()
 fig = px.scatter(ham_df, x="Interconnectedness", y="Return Multiplier")
 fig.show()
 
-# %%
-multiplierNumWeeksAverage
-# %%
 p = np.poly1d(np.polyfit(ham_df['Interconnectedness'], ham_df['Return Multiplier'], 1))
+regr_results = sp.stats.linregress(ham_df['Interconnectedness'], ham_df['Return Multiplier'])
+
+#%%PLOT - MEAN MEDIAN QUARTILES ETC VS RETURN 
+cheese = [[x,v['mean']] for x,v in MultiplierHistogramFiltered.items()]
+gouda = [[x,v['LQ']] for x,v in MultiplierHistogramFiltered.items()]
+swiss = [[x,v['UQ']] for x,v in MultiplierHistogramFiltered.items()]
+cheddar = [[x,v['5th']] for x,v in MultiplierHistogramFiltered.items()]
+edam = [[x,v['median']] for x,v in MultiplierHistogramFiltered.items()]
+
+cheese_df = pd.DataFrame(cheese, columns=['Return Multiplier', 'Interconnectedness'])
+gouda_df = pd.DataFrame(gouda, columns=['Return Multiplier', 'Interconnectedness'])
+swiss_df = pd.DataFrame(swiss, columns=['Return Multiplier', 'Interconnectedness'])
+cheddar_df = pd.DataFrame(cheese, columns=['Return Multiplier', 'Interconnectedness'])
+edam_df = pd.DataFrame(edam, columns=['Return Multiplier', 'Interconnectedness'])
+
+f1 = px.scatter(cheese_df, x="Interconnectedness", y="Return Multiplier")
+f2 = px.scatter(gouda_df, x="Interconnectedness", y="Return Multiplier")
+f3 = px.scatter(swiss_df, x="Interconnectedness", y="Return Multiplier")
+f4 = px.scatter(cheddar_df, x="Interconnectedness", y="Return Multiplier")
+f5 = px.scatter(edam_df, x="Interconnectedness", y="Return Multiplier")
+# fig.show()
+
+ching = make_subplots()
+ching.add_traces(f1.data + f2.data + f3.data + f4.data + f5.data)
+
+ching.show()
+
+
+#%% PLOT - HISTOGRAM OF EVENTS FOR WEEKS AGAINST S&P500 STOCK PRICE FOR FIVE YEARS
+bolognese = [[int(x.split(' ')[0]), w] for x,w in allStocksWeekBinsCount.items()]
+lettuce = [[int(x.split(' ')[0]), y] for x,y in spAvgPricePerWkBin.items()]
+bolognese_df = pd.DataFrame(bolognese, columns=['Week Bin', 'Interconnectedness'])
+lettuce_df = pd.DataFrame(lettuce, columns=['Week Bin', 'Price'])
+subfig = make_subplots(specs=[[{"secondary_y": True}]])
+fig = px.line(lettuce_df, y='Price', x='Week Bin')
+fig2 = px.bar(bolognese_df, y='Interconnectedness', x='Week Bin')
+# fig.show()
+
+fig2.update_traces(yaxis="y2")
+
+subfig.add_traces(fig.data + fig2.data)
+subfig.layout.xaxis.title="Weeks in the last 5yrs"
+subfig.layout.yaxis.title="S&P500 Price $$$"
+subfig.layout.yaxis2.title="Interconnectedness"
+# recoloring is necessary otherwise lines from fig und fig2 would share each color
+# e.g. Linear-, Log- = blue; Linear+, Log+ = red... we don't want this
+
+subfig.show()
 
 # %%
-p
-# %%
-regr_results = sp.stats.linregress(ham_df['Interconnectedness'], ham_df['Return Multiplier'])
-print(regr_results)
-# %%
-ham_df.describe()
+weekBins
 # %%
