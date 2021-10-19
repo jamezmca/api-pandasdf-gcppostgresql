@@ -194,7 +194,7 @@ fig.show()
 
 
 # %% PLOTTING S&P500 VALUE AGAINST 
-ham = [[x, v] for x,v in multiplierNumWeeksAverage.items()]
+ham = [[x, w] for x,w in {k:v for k,v in multiplierNumWeeksAverage.items() if k > 0.6 and k < 2}.items()]
 
 ham_df = pd.DataFrame(ham, columns=['Return Multiplier', 'Interconnectedness'])
 ham_df.describe()
@@ -204,3 +204,9 @@ fig.show()
 # %%
 multiplierNumWeeksAverage
 # %%
+p = np.poly1d(np.polyfit(ham_df['Interconnectedness'], ham_df['Return Multiplier'], 1))
+
+# %%
+p
+# %%
+import
