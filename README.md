@@ -27,3 +27,6 @@
 # next value and saves gradient etc until finish
 # searches object and eliminates similar entries or upgrades a min or max 
 # point if it creates a more significant gradient or a larger pecentage
+
+
+#Graphs to produce

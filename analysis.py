@@ -31,278 +31,135 @@ print('Successfully imported csv files :)')
 #REQUIRED INPUT VARIABLES
 analysisRange = 0.01 #range determines allowable drop gradient
 dec = 1.2 #signifies a 20 percent decrease in value
-howManyDaysLater = 120 #2 month return
+howManyDaysLater = 60 #2 month return
 
 #LIST OF ALL FUNCTIONS
-def findNearestDate(searchesDates, dat): #finds the closest day in the search array
-    delta = 3000
-    d1 = date(int(dat.split('-')[0]), int(dat.split('-')[1]), int(dat.split('-')[2]))
-    for day in searchesDates:
-        d0 = date(int(day.split('-')[0]), int(day.split('-')[1]), int(day.split('-')[2]))
-        diff = d1 - d0
-        if abs(diff.days) < delta:
-            closestDay = day
-            delta = abs(diff.days)
-    return closestDay
+
 
 def initializeWeekBins(datesArray):
     hokeyPokey = {}
     for i in range(len(datesArray)):
         if i == 0:
-            hokeyPokey[f'{i} {i+5}'] = 0
+            hokeyPokey[f'{i} {i+5}'] = [0, {}] #dict contains stock and count of particular stock
         elif i % 5 == 0:
-            hokeyPokey[f'{i} {i+5}'] = 0
+            hokeyPokey[f'{i} {i+5}'] = [0, {}]
     return  hokeyPokey
 
-def initializeStocksInWeeklyBins(weeklyBins):
-    vanilla = {}
-    for key in weeklyBins:
-        vanilla[key] = {}
-    return vanilla
-
-def findReturnSearchAverages(rs):
-    keys = list(rs)
-    returnAverages = dict()
-    for i in range(len(list(rs))):
-        total = 0
-        for val in rs[list(rs)[i]]:
-            total += val
-        returnAverages[list(rs)[i]] = total / len(rs[list(rs)[i]])
-    return returnAverages
-
-def hasOverLap(wklyBinIndexes, maxIndex, minIndex):
-    maxOverLap = 0
+def findOverlappingWeeks(wklyBinIndexes, maxIndex, minIndex):
+    maxOverlap = 0
     bongo = [] #array of bins to increment
     for key in wklyBinIndexes:
         keyStart, keyEnd =  key.split(' ')
         keyStart, keyEnd, maxIndex, minIndex = [int(keyStart), int(keyEnd), int(maxIndex), int(minIndex)]
-        overlap = max(maxIndex - keyStart, keyEnd - minIndex)
+        overlap = minIndex - keyStart if minIndex < keyEnd else keyEnd - maxIndex
+        hasOverlap = (maxIndex >= keyStart and maxIndex < keyEnd) or (minIndex < keyEnd and minIndex >= keyStart)
         #if find bigger overlap, reset overlap and create for new max overlap
         if (maxIndex >= keyStart and minIndex < keyEnd) or (maxIndex <= keyStart and minIndex > keyEnd):
             overlap = 5
             bongo.append(key)
-        elif (maxIndex >= keyStart and maxIndex < keyEnd and overlap > maxOverLap) or (minIndex < keyEnd and minIndex >= keyStart and overlap > maxOverLap):
+            maxOverlap = 5
+        elif hasOverlap and overlap >= maxOverlap:
             maxOverlap = overlap
             bongo.append(key)
     return bongo
 
-def findNormalizedSearchValue(stocki, endDate, dataframe): #need to fix this so it doesn't return dud values!!!!!!!!!!!!! can't return nan, inf, Nonetype, only float
-#finds the current search interest of a stock over
-#the last two weeks as compared to the last # months
-    num = 6 #weekly results is num / 4 is months
-    if stocki in dataframe:
-        stockSearches = dataframe[stocki]
-        # print(stockSearches)
-        indexOfEndDate = list(dataframe['date']).index(endDate)
-        # indexOfEndDate = stockSearches.index(endDate)
-        lastThreeMonths = stockSearches[indexOfEndDate - num : indexOfEndDate+1]
-        #going to compare last two weeks to average of last three months exclusive of last two weeks
-        average = np.mean(lastThreeMonths[:-2])
-        return np.mean(lastThreeMonths[:-1]) / (average if average != 0 else 1)  #need to fix this cell
-    return None
-
-def datesOverlap(wklybins, stocksInWeeklyBins, dipo, stocky): #needs to take the stock to make sure im not double counting the stock but should still average dates
-    # a nice idea but what i actually want to do is create week bins and just histogram them for every stock drop
-    wklyBinsCopy = wklybins.copy()
-    stocksInBinsCopy = stocksInWeeklyBins.copy()
-    overlapIndexes = hasOverLap(wklybins, dipo['maxIndex'], dipo['minIndex'])
-    
-    # for overlap in overlapIndexes:
-    #     if stock not in stocksInBinsCopy[overlap].keys():
-    #         wklyBinsCopy[overlap] = wklyBinsCopy[overlap] + 1
-    #     stocksInBinsCopy[overlap][stock] = stocksInBinsCopy[overlap].get(stock, 0) + 1
-    for ben in dipo['dateBins']:
-        if ben in stocksInBinsCopy:
-            if stocky not in stocksInBinsCopy[ben].keys():
-                wklyBinsCopy[ben] = wklyBinsCopy[ben] + 1    
-            stocksInBinsCopy[ben][stocky] = stocksInBinsCopy[ben].get(stocky, 0) + 1
-        else:
-            wklyBinsCopy[ben] = 1
-            stocksInBinsCopy[ben][stocky] = stocksInBinsCopy[ben].get(stocky, 0) + 1
-    return wklyBinsCopy, stocksInBinsCopy
-
-def findReturnVsInterconnectedness(weekbinss, dippy, how_many_days_later, stocko, associatedReturnDict, associatedReturnDictInv):
-    mean = np.mean(np.array([weekbinss[x] for x in dippy['dateBins']]))
-    #for each weekBin, plot average and median and lower 25% return and plot that
-    associatedReturnDict[dippy['return']] = mean
-    for been in dippy['dateBins']:
-        associatedReturnDictInv[been] = associatedReturnDictInv.get(been, 0) + 1/len(dippy['dateBins'])
-    return associatedReturnDict, associatedReturnDictInv
-
-def findLocationsOfValueDrop(array, analysisRange, decrement, stack, how_many_days_later, wkBins): #FIND ALL STATS IN HERE AND MAKE IT A BUNCH OF SMALLER FUNCTIONS AND ALSO INCLUDE WHICHEVER DATE BINS IT'S IN
+def findLocationsOfValueDrop(array, analysisRange, decrement, stack, how_many_days_later, week_bins): #FIND ALL STATS IN HERE AND MAKE IT A BUNCH OF SMALLER FUNCTIONS AND ALSO INCLUDE WHICHEVER DATE BINS IT'S IN
     gradients = {}
     length = len(array)
-    #FIND THREE MONTH RETURN IN HERE!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    for i in range(length - how_many_days_later):
-        if i > (1-analysisRange)*length:
-            break
-        tempArray = list(array[i:i+math.ceil(analysisRange*length)])
+    for i in range(length - how_many_days_later - math.floor(analysisRange*length)):
+        tempArray = list(array[i:i+math.floor(analysisRange*length)])
         maximum = max(tempArray)
         maxIndex = tempArray.index(maximum) + i
         minimum = min(tempArray) if min(tempArray) != 0 else 0.001
         minIndex = tempArray.index(0) + i if minimum == 0.001 else tempArray.index(minimum) + i
+        decreaseRatio = maximum / minimum
         if maxIndex - minIndex != 0:
             deltaX = maxIndex - minIndex
         else: #can just set it to a positive integer cause I only want negative gradients and max and min are the same value
             deltaX = 15
-        dateBins = hasOverLap(initializeWeekBins(dates), maxIndex, minIndex)
+        dateBins = findOverlappingWeeks(list(week_bins), maxIndex, minIndex)
         grad = (maximum - minimum) / deltaX #possibly should be perc/deltaX
-        gradients[i] = {"max": maximum, 
-                        "min": minimum, 
-                        "grad": grad, 
-                        "perc": maximum/minimum,
-                        'minIndex': minIndex,
-                        'maxIndex': maxIndex,
-                        'dateBins': dateBins}
-    negGrads = {k:v for (k,v) in gradients.items() if v['perc'] > decrement and v['grad'] < 0}
-    for drop in negGrads:
-        print(drop)
-        if negGrads[drop]['minIndex'] + how_many_days_later < len(array):
-            returnPerc = df_sp_prices[stack][negGrads[drop]['minIndex']+howManyDaysLater] / negGrads[drop]['min']
-        else:
-            returnPerc = df_sp_prices[stack][len(dates)-1] / negGrads[drop]['min']
-        negGrads[drop]['return'] = returnPerc
-    #clean return if refering to exact same drop
-    result = {}
-    for key,val in negGrads.items():
-        if val not in result.values():
-            result[key] = val
-
-    binsAlreadyCounted = []
-    for drop in result:
-        for ben in result[drop]['dateBins']:
-            if ben not in binsAlreadyCounted:
-                wkBins[ben] = wkBins.get(ben, 0) + 1
-            binsAlreadyCounted.append(ben)
-
-    return result, wkBins
+        multiplier = array[minIndex+howManyDaysLater] / minimum
+        completeObj = {"max": maximum, 
+                            "min": minimum, 
+                            "grad": grad, 
+                            "decreaseRatio": decreaseRatio,
+                            'minIndex': minIndex,
+                            'maxIndex': maxIndex,
+                            'dateBins': dateBins,
+                            'multiplier': multiplier}
+        if grad < 0 and decreaseRatio > decrement and completeObj not in gradients.values(): #ensures no double ups
+            gradients[i] = completeObj
+            for week in dateBins:
+                if stack not in week_bins[week][1]:
+                    week_bins[week][0] += 1
+                    week_bins[week][1][stack] = multiplier
+                elif multiplier > week_bins[week][1][stack]:
+                    week_bins[week][1][stack] = multiplier
+    return gradients, week_bins
 
 
-# %% PART 1: FIND LOCATIONS OF NEGATIVE GRADIENT
+# %% PART 1: FIND LOCATIONS OF NEGATIVE GRADIENT 
 yearsToWeeks = 5 * 52
 xRange = yearsToWeeks * analysisRange
-
-weekbinsCount = {}
+#ALSO MAKE TO MAKE A DICT THAT SHOWS WEEK -> STOCK -> list of returns
+#ALSO MAKE A DICT THAT SHOES THE AVERAGE RETURN FOR EACH STOCK AFTER 20% dip and maybe check how ranking determines return
+    #BUT START OFF MAKING A LIST OF RETURNS FOR EACH STOCK IN A DICT AND THEN AVERAGE IT AND MAKE GRAPPHS OF QUARTILES
+weekBins = initializeWeekBins(dates)
 negGradsForAllStocks = {}
 for stock in df_sp_prices:
     if stock != 'date' and stock != 'Date':
-        negGradsForAllStocks[stock], weekbinsCount = findLocationsOfValueDrop(df_sp_prices[stock], analysisRange, dec, stock, howManyDaysLater, weekbinsCount)
-print('finished part 1')
+        negGradsForAllStocks[stock], weekBins = findLocationsOfValueDrop(df_sp_prices[stock], analysisRange, dec, stock, howManyDaysLater, weekBins)
+print(f'finished part 1 for analysis range: {xRange} weeks')
 # print(f'The total number of negative gradient segments in the last 5 years\n of every stock in the S&P500 is: {sum} \nWith an analysis range of {xRange} weeks.')
 
-#%%
-# negGradsForAllStocks['amzn']
-weekbinsCount
+
+#%% PART 2: FROM WEEKBINS, CREATE A HISTOGRAM DICT THAT LISTS EVERY RETURN, AND A LIST OF ALL THE SHARED NUM OF ENTRIES (interconnectedness)
+multiplierNumWeeks = dict()
+for veek in weekBins.values():
+    for ret in veek[1].values():
+        if ret in multiplierNumWeeks:
+            multiplierNumWeeks[ret].append(veek[0])
+        else:
+            multiplierNumWeeks[ret] = [veek[0]]
+
+multiplierNumWeeksAverage = {k:np.mean(np.array(v)) for (k,v) in multiplierNumWeeks.items()}
+multiplierNumWeeksAverage = {k: v for k, v in sorted(multiplierNumWeeksAverage.items(), key=lambda item: item[0])}
+
+#CREATE HISTOGRAM FOR THE RANGES FOR EG 0.7 = [...ALL THE DROPS]
+    #AND THEN CREATE PERCENTILES FROM THOSE LISTS
+multiplerHistogram = dict() #{1.2: [[...list of interconnecteds], numOfinterconnecteds, avgInterconnecteds]}
+for multiplier in multiplierNumWeeksAverage:
+    prefix = np.around(multiplier, 1)
+    if prefix in multiplerHistogram:
+        multiplerHistogram[prefix]['list'].append(multiplierNumWeeksAverage[multiplier])
+        listItems = np.array(multiplerHistogram[prefix]['list'])
+        multiplerHistogram[prefix]['listLength'] = len(listItems)
+        multiplerHistogram[prefix]['mean'] = np.mean(listItems)
+        multiplerHistogram[prefix]['median'] = np.median(listItems)
+        multiplerHistogram[prefix]['LQ'] = np.quantile(listItems, 0.25)
+        multiplerHistogram[prefix]['UQ'] = np.quantile(listItems, 0.75)
+        multiplerHistogram[prefix]['5th'] = np.quantile(listItems, 0.05)
+    else: 
+        multiplerHistogram[prefix] = {  'list': [multiplierNumWeeksAverage[multiplier]],
+                                        'listLength': 1, 
+                                        'mean': multiplierNumWeeksAverage[multiplier],
+                                        'median': [multiplierNumWeeksAverage[multiplier]],
+                                        'LQ': [multiplierNumWeeksAverage[multiplier]],
+                                        'UQ': [multiplierNumWeeksAverage[multiplier]],
+                                        '5th': [multiplierNumWeeksAverage[multiplier]]}
+
+MultiplierHistogramFiltered = {k:v for k,v in multiplerHistogram.items() if k > 0.6 and k < 2}
 #%% PART 2: COMPARES LATEST SEARCHES TO THE HISTORICAL AVERAGE OVER A GREATER PERIOD OF TIME
-negGradSearches = dict()
-
-for stock in negGradsForAllStocks:
-    for dip in negGradsForAllStocks[stock]:
-        particularDip = negGradsForAllStocks[stock][dip]
-        closestSearchDate = findNearestDate(df_sp_searches['date'], df_sp_prices['Date'][particularDip['minIndex']])
-        normalizedSeachValue = findNormalizedSearchValue(newDict[stock], closestSearchDate, df_sp_searches)
-        if stock in negGradSearches:
-            negGradSearches[stock][df_sp_prices['Date'][particularDip['minIndex']]] = normalizedSeachValue 
-        else:
-            negGradSearches[stock] = {}
-            negGradSearches[stock][df_sp_prices['Date'][particularDip['minIndex']]] = normalizedSeachValue 
-
-print(f'Number of negGradSearches associated to drops: {len(negGradSearches.keys())}.')
-
-
+print(list(MultiplierHistogramFiltered))
 #%% PART 3: BASELINE CHECk FOR STOCK RECOVERY - CHECK VALUE AFTER 3 MONTHS
-threeMonthReturn = dict()
-monthsLaterPercentages = list()
-maxReturns = None
-minReturns = None
-countDips = 0
-countSearches = 0
 
-for stock in negGradsForAllStocks:
-    for dip in negGradsForAllStocks[stock].values():
-        if stock not in threeMonthReturn: #For 3 month return
-            threeMonthReturn[stock] = {}
-        countDips += 1
-        if dip['minIndex']+howManyDaysLater < len(dates):
-            returnPerc = df_sp_prices[stock][dip['minIndex']+howManyDaysLater] / dip['min']
-        else:
-            returnPerc = df_sp_prices[stock][len(dates)-1] / dip['min']
-        if maxReturns == None:
-            maxReturns = {'stock': stock, 'returnVal': returnPerc, 'date': df_sp_prices['Date'][dip['minIndex']], '3month': df_sp_prices[stock][dip['minIndex']+howManyDaysLater], 'min': dip['min']}
-            minReturns = {'stock': stock, 'returnVal': returnPerc, 'date': df_sp_prices['Date'][dip['minIndex']], '3month': df_sp_prices[stock][dip['minIndex']+howManyDaysLater], 'min': dip['min']}
-        elif returnPerc > maxReturns['returnVal']:
-            maxReturns = {'stock': stock, 'returnVal': returnPerc, 'date': df_sp_prices['Date'][dip['minIndex']], '3month': df_sp_prices[stock][dip['minIndex']+howManyDaysLater], 'min': dip['min']}
-        elif returnPerc < minReturns['returnVal']:
-            minReturns = {'stock': stock, 'returnVal': returnPerc, 'date': df_sp_prices['Date'][dip['minIndex']], '3month': df_sp_prices[stock][dip['minIndex']+howManyDaysLater], 'min': dip['min']}
-        monthsLaterPercentages.append(returnPerc)
-        threeMonthReturn[stock][dip['minIndex']] = returnPerc
-
-#%%
-threeMonthReturn
-
-
-#%%PART 4: CHECK SEARCHES AGAINST RETURN VALUES
-returnPercentages = dict() #histogram of percentage returns
-returnSearches = dict()
-returnSearchesAverages = dict()
-naanIndex = []
-coolObj = []
-
-for stock in negGradsForAllStocks:
-    print(stock)
-    if stock in negGradSearches: #REQ FOR BELOW
-        stockSearches = negGradSearches[stock]
-
-    for dip in negGradsForAllStocks[stock].values():
-        if dip['minIndex']+howManyDaysLater < len(dates):
-            returnPerc = df_sp_prices[stock][dip['minIndex']+howManyDaysLater] / dip['min']
-            if math.isnan(returnPerc):
-                naanIndex.append([stock, dip['minIndex']])
-                continue
-        else:
-            returnPerc = df_sp_prices[stock][len(dates)-1] / dip['min']
-
-        returnPercentages[f'{str(returnPerc)[:3]}'] = returnPercentages.get(f'{str(returnPerc)[:3]}', 0.00) + 1 
-        if (stock in negGradSearches) and isinstance(stockSearches[dates[dip['minIndex']]], float) and (not math.isnan(stockSearches[dates[dip['minIndex']]])) and not (math.isinf(stockSearches[dates[dip['minIndex']]])) and (stockSearches[dates[dip['minIndex']]] != 0):
-            if f'{str(returnPerc)[:3]}' not in returnSearches:
-                returnSearches[f'{str(returnPerc)[:3]}'] = []
-            returnSearches[f'{str(returnPerc)[:3]}'].append(stockSearches[dates[dip['minIndex']]])
-            coolObj.append([returnPerc, stockSearches[dates[dip['minIndex']]]])
-
-#order the objects
-returnPercentages = {k: v for k, v in sorted(returnPercentages.items(), key=lambda item: item[0])}
-returnSearches = {k: v for k, v in sorted(returnSearches.items(), key=lambda item: item[0])}
-returnSearchesAverages = findReturnSearchAverages(returnSearches)
-
-#%%
-returnPercentages
 
 #%% PART 5: CREATE INTERCONNECTEDNESS HISTOGRAM - WEEKBINS NEEDS FIXING
-weekBins = initializeWeekBins(dates)
-stocksInWeekBins = initializeStocksInWeeklyBins(weekBins)
 
-for stock in negGradsForAllStocks:
-    for dip in negGradsForAllStocks[stock].values():
-        weekBins, stocksInWeekBins = datesOverlap(weekBins, stocksInWeekBins, dip, stock)
-
-#%%
-weekbinsCount
 #%% PART 6: FIND THE INTERCONNECTEDNESS AND ASSOCIATED RETURN
-associatedReturnDict = dict() #for every dip, i want to add the return and the max search week
-associatedReturnDictInv = dict() #for every dip, i want to 
 
-for stock in negGradsForAllStocks:
-    for dip in negGradsForAllStocks[stock].values():
-        associatedReturnDict, associatedReturnDictInv = findReturnVsInterconnectedness(weekbinsCount, dip, howManyDaysLater, stock, associatedReturnDict, associatedReturnDictInv)
-     
-associatedReturnDict = {k: v for k, v in sorted(associatedReturnDict.items(), key=lambda item: item[0])}
-print('finishedddddddd')
-#if dates have more than a 50% overlap with dates in average max-min histogram, increment count in histograms where key is the average date range(start and finish) which is stored in a separate  dictionary
-#key keys showing all the start and end days that overlap with the average and then become part of the average
-
-#%%
-associatedReturnDictInv
-#%% PART 6: CHECK HOW INTERCONNECTEDNESS REDUCES CHANCE OF A LOSS AND HOW IT COMPARES TO S&P500 IF THEY BOTH DROP
+#%% PART 7: CHECK HOW INTERCONNECTEDNESS REDUCES CHANCE OF A LOSS AND HOW IT COMPARES TO S&P500 IF THEY BOTH DROP
 #first check if dates do overlap significantly
 #then compare it to the returns maybe by how much they overlap
 #then compare it to a straight true or false overlap
@@ -311,90 +168,39 @@ associatedReturnDictInv
 #also need to filter out mad values in all stock answers before averaging
 #also check if snp500 experienced any of these drops above just the min of (30%)? of individual stocks for example
 #%% PROCESS ANY UNWANTED DATA IE REMOVING LOW SIGNIFICANCE RETURNS
-#Remove outlier search values > 5
-#Remove any return multipliers > 3
-coolObj = [[x[0], x[1]] for x in coolObj if x[1] < 5 and x[0] < 3 and x[1] > 0.5 and x[0] > 0.6]
-
-print(f'datasize is {len(coolObj)} pairs longs')
-
-#MAYBE MAKE A LOG TRANSFORMATION ON SEARCH INDEX OR A SQUAREROOT TRANSFORMATION PERHAPS
-#%%Make scatter plot of multiplier vs searches dataframe
-relationshipDF = pd.DataFrame(np.array(coolObj), columns=['multiplier', 'normSearch'])
 
 #%% ONE SAMPLE T-TESTING TO FIND P-VALUE
 #need to do indepedance, Equality of variance and normality of data / residuals
 #make a scatter plot for each return and the associated search value and a line of best fit
 #could use an object or a dataframe
 
-relationshipDF.describe()
-# relationshipDF.head(10)
-#%%
-len(associatedReturnDict)
-#%%
-min(relationshipDF['normSearch'])
-#%%
-len(df_sp_searches.columns)
-#%%
-negGradsForAllStocks['dal']
-#%%
-returnSearches
-#%%
-returnPercentages
-
-#%%
-weekBins
-#%%
-returnSearchesAverages
-#if the searches are below 
-
-#%%
-associatedReturnDictInv = {k: v for k, v in sorted(associatedReturnDictInv.items(), key=lambda item: item[0])}
-associatedReturnDictInv
-
-#%%
-stocksInWeekBins['1050 1055']
-#%%
-returnStats = np.array(monthsLaterPercentages)
-med = np.median(returnStats)
-med
-
-#%%
-weekBins
+#%%GRAPPPHHHHIIIIINNNNNGGGGGGGGG
+#GRAPHS TO PRODUCE
+#- ALL interconnectedness vs returns both whole plot and mean, median, LQ, UQ, 5th, IQR, RANGE, 
+#- INDIVIDUAL STOCKS REBOUND AND INDIVIDUAL STOCKS PERCENTAGE CHANCE OF TAKING A NEGATIVE
+#- S&P 500 VALUE / DROPS AGAINST INTERCONNECTEDNESS BOTH ON WEEKBIN AXIS
+#- DF S&P 500 PRICE RETURNS VS RETURNS OF STOCKS AFTER DROP (ESP THOSE WITH HIGH INTERCONNECTNESS)
+#-
+#-
+#-
+#-
 #%%PLOTTING NUM OF SHARED DROPS WITH RETURN FROM
-cheese = list()
-for key in associatedReturnDict:
-    print(associatedReturnDict[key])
-    cheese.append([key, associatedReturnDict[key]])
+cheese = [[x,v['mean']] for x,v in MultiplierHistogramFiltered.items()]
+
 cheese_df = pd.DataFrame(cheese, columns=['Return Multiplier', 'Interconnectedness'])
 cheese_df.describe()
 fig = px.scatter(cheese_df, x="Interconnectedness", y="Return Multiplier")
 fig.show()
 
-#%%PLOTTING
-cheese_df.describe()
 
-#%%
-associatedReturnDict.keys()
+# %% PLOTTING S&P500 VALUE AGAINST 
+ham = [[x, v] for x,v in multiplierNumWeeksAverage.items()]
 
-# %%
-practiceArray = pd.Series([0, 1, 3, 5, 10, 7, 8, 7, 5, 11, 11, 12.5, 5, 9, 6, 15])
-
-# %%
-# %%
-# %%
-negGradsForAllStocks['amzn']
-# %%
-# %%
-print(min(monthsLaterPercentages))
-# %%
-for name in df_sp_searches.columns:
-    print(name)
+ham_df = pd.DataFrame(ham, columns=['Return Multiplier', 'Interconnectedness'])
+ham_df.describe()
+fig = px.scatter(ham_df, x="Interconnectedness", y="Return Multiplier")
+fig.show()
 
 # %%
-xRange
-# %%
-james, henry = 'banana phone'.split(' ')
-print(henry)
-# %%
-
+multiplierNumWeeksAverage
 # %%
