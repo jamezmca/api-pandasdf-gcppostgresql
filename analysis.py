@@ -108,6 +108,7 @@ def findLocationsOfValueDrop(array, analysisRange, decrement, stack, how_many_da
                     week_bins[week][1][stack] = multiplier
     return gradients, week_bins
 
+#%%
 # %% PART 1: FIND LOCATIONS OF NEGATIVE GRADIENT 
 yearsToWeeks = 5 * 52
 xRange = yearsToWeeks * analysisRange
@@ -127,14 +128,21 @@ negGradsForSP500, spWkBins = findLocationsOfValueDrop(df_sp_price['price'], anal
 spAvgPricePerWkBin = sp500AvgPrice(spWkBins, df_sp_price['price'])
 
 print(f'finished part 1 for analysis range: {xRange} weeks')
+#%% PART 2: CREATE HISTOGRAM OF RETURN PERCENTAGE AND AVERAGE INTERCONNECTEDNESS
+
+returnsHistogramLists = dict()
+
+for steak in negGradsForAllStocks.values():
+    for vals in steak.values():
+        binDex = np.round(int(vals['multiplier']), 3)
+        print(binDex)
 
 #%% PART 3: CREATE THE INVERSE OF THE ABOVE SO PERCENTILES FOR AN INTERCONNECTEDNESS AND PERCENTILES OF THE RETURN VALUE LIST
-weekBins
 interconnectednessHistogram = dict()
 for wek in weekBins.values():
     interCon = wek[0]
     if interCon in interconnectednessHistogram:
-        interconnectednessHistogram[interCon]['list'].append(list(wek[1].values())) 
+        interconnectednessHistogram[interCon]['list'] += (list(wek[1].values())) 
         listItems = np.array(interconnectednessHistogram[interCon]['list'])
         interconnectednessHistogram[interCon]['listLength'] = len(listItems)
         interconnectednessHistogram[interCon]['mean'] = np.mean(np.array(listItems))
@@ -155,8 +163,36 @@ for wek in weekBins.values():
                 'UQ': np.quantile(npyarray, 0.75),
                 '5th': np.quantile(npyarray, 0.05)
             }
-        
+            
+#MAYBE MAKE SEPARATE ARRAYS AND PROCESS USING DICTIONARY COMPREHENSION
+interconnectednessHistogramSmooth = dict()
+for key,val in interconnectednessHistogram.items():
+    if key < 100:
+        grade = int(str(key)[:1] + '5')
+        if key < 10:
+            if 5 not in interconnectednessHistogramSmooth:
+                interconnectednessHistogramSmooth[5] = val['list']
+            else: 
+                interconnectednessHistogramSmooth[5] += val['list']
+        else:
+            if grade not in interconnectednessHistogramSmooth:
+                interconnectednessHistogramSmooth[grade] = val['list']
+            else:
+                interconnectednessHistogramSmooth[grade] += val['list']
+    else : 
+        grade = int(str(key)[:1] + '05')
+        if grade not in interconnectednessHistogramSmooth:
+            interconnectednessHistogramSmooth[grade] = val['list']
+        else:
+            interconnectednessHistogramSmooth[grade] += val['list']
+interconnectednessHistogramSmoothMetrics = {k:{'mean': np.mean(np.array(v)), 'median': np.median(np.array(v)), 'UQ': np.quantile(np.array(v), 0.75), 'LQ': np.quantile(np.array(v), 0.25), '5th': np.quantile(np.array(v), 0.05)} for k,v in interconnectednessHistogramSmooth.items()}
 
+
+interconnectednessHistogram = {k: v for k, v in sorted(interconnectednessHistogram.items(), key=lambda item: item[0])}
+interconnectednessHistogramSmoothMetrics = {k: v for k, v in sorted(interconnectednessHistogramSmoothMetrics.items(), key=lambda item: item[0])}
+
+#%%
+interconnectednessHistogramSmoothMetrics
 #%% PART 2: FROM WEEKBINS, CREATE A HISTOGRAM DICT THAT LISTS EVERY RETURN, AND A LIST OF ALL THE SHARED NUM OF ENTRIES (interconnectedness)
 multiplierNumWeeks = dict()
 for veek in weekBins.values():
@@ -227,38 +263,43 @@ MultiplierHistogramFiltered = {k:v for k,v in multiplerHistogram.items() if k > 
 #-
 
 #%% PLOT - TOTAL DATA PLOT WITH STATISTICAL ANALYSIS 
+eggies = [[x, w] for x,w in {k:v for k,v in multiplierNumWeeksAverage.items() if k > 0.6 and k < 2}.items()]
+
+eggies_df = pd.DataFrame(eggies, columns=['Return Multiplier', 'Interconnectedness'])
+eggies_df.describe()
+fig = px.scatter(eggies_df, x="Interconnectedness", y="Return Multiplier", color="Return Multiplier")
+fig.show()
+
+p = np.poly1d(np.polyfit(eggies_df['Interconnectedness'], eggies_df['Return Multiplier'], 1))
+regr_results = sp.stats.linregress(eggies_df['Interconnectedness'], eggies_df['Return Multiplier'])
+
+#%%PLOT - RETURN MEAN MEDIAN QUARTILES ETC VS WEEKBINS averaged into 2 week periods 
+#MAYBE PLOT BOX AND WHISKER TOO OVEERTOP OR EVEN HAVE ALL VALUES PLOTTED
+cheese = [[x,v['mean']] for x,v in interconnectednessHistogramSmoothMetrics.items()]
+gouda = [[x,v['LQ']] for x,v in interconnectednessHistogramSmoothMetrics.items()]
+swiss = [[x,v['UQ']] for x,v in interconnectednessHistogramSmoothMetrics.items()]
+cheddar = [[x,v['5th']] for x,v in interconnectednessHistogramSmoothMetrics.items()]
+edam = [[x,v['median']] for x,v in interconnectednessHistogramSmoothMetrics.items()]
 ham = [[x, w] for x,w in {k:v for k,v in multiplierNumWeeksAverage.items() if k > 0.6 and k < 2}.items()]
 
 ham_df = pd.DataFrame(ham, columns=['Return Multiplier', 'Interconnectedness'])
-ham_df.describe()
-fig = px.scatter(ham_df, x="Interconnectedness", y="Return Multiplier")
-fig.show()
+cheese_df = pd.DataFrame(cheese, columns=['Interconnectedness', 'Return Multiplier'])
+gouda_df = pd.DataFrame(gouda, columns=['Interconnectedness', 'Return Multiplier'])
+swiss_df = pd.DataFrame(swiss, columns=['Interconnectedness', 'Return Multiplier'])
+cheddar_df = pd.DataFrame(cheddar, columns=['Interconnectedness', 'Return Multiplier'])
+edam_df = pd.DataFrame(edam, columns=['Interconnectedness', 'Return Multiplier'])
 
-p = np.poly1d(np.polyfit(ham_df['Interconnectedness'], ham_df['Return Multiplier'], 1))
-regr_results = sp.stats.linregress(ham_df['Interconnectedness'], ham_df['Return Multiplier'])
+f1 = px.line(cheese_df, x="Interconnectedness", y="Return Multiplier")
+f2 = px.line(gouda_df, x="Interconnectedness", y="Return Multiplier")
+f3 = px.line(swiss_df, x="Interconnectedness", y="Return Multiplier")
+f4 = px.line(cheddar_df, x="Interconnectedness", y="Return Multiplier")
+f5 = px.line(edam_df, x="Interconnectedness", y="Return Multiplier")
+f6 = px.scatter(ham_df, x="Interconnectedness", y="Return Multiplier", color="Return Multiplier")
 
-#%%PLOT - MEAN MEDIAN QUARTILES ETC VS RETURN 
-cheese = [[x,v['mean']] for x,v in MultiplierHistogramFiltered.items()]
-gouda = [[x,v['LQ']] for x,v in MultiplierHistogramFiltered.items()]
-swiss = [[x,v['UQ']] for x,v in MultiplierHistogramFiltered.items()]
-cheddar = [[x,v['5th']] for x,v in MultiplierHistogramFiltered.items()]
-edam = [[x,v['median']] for x,v in MultiplierHistogramFiltered.items()]
-
-cheese_df = pd.DataFrame(cheese, columns=['Return Multiplier', 'Interconnectedness'])
-gouda_df = pd.DataFrame(gouda, columns=['Return Multiplier', 'Interconnectedness'])
-swiss_df = pd.DataFrame(swiss, columns=['Return Multiplier', 'Interconnectedness'])
-cheddar_df = pd.DataFrame(cheese, columns=['Return Multiplier', 'Interconnectedness'])
-edam_df = pd.DataFrame(edam, columns=['Return Multiplier', 'Interconnectedness'])
-
-f1 = px.scatter(cheese_df, x="Interconnectedness", y="Return Multiplier")
-f2 = px.scatter(gouda_df, x="Interconnectedness", y="Return Multiplier")
-f3 = px.scatter(swiss_df, x="Interconnectedness", y="Return Multiplier")
-f4 = px.scatter(cheddar_df, x="Interconnectedness", y="Return Multiplier")
-f5 = px.scatter(edam_df, x="Interconnectedness", y="Return Multiplier")
 # fig.show()
 
 ching = make_subplots()
-ching.add_traces(f1.data + f2.data + f3.data + f4.data + f5.data)
+ching.add_traces(f1.data + f2.data + f3.data + f4.data + f5.data+ f6.data)
 
 ching.show()
 
@@ -270,7 +311,7 @@ bolognese_df = pd.DataFrame(bolognese, columns=['Week Bin', 'Interconnectedness'
 lettuce_df = pd.DataFrame(lettuce, columns=['Week Bin', 'Price'])
 subfig = make_subplots(specs=[[{"secondary_y": True}]])
 fig = px.line(lettuce_df, y='Price', x='Week Bin')
-fig2 = px.bar(bolognese_df, y='Interconnectedness', x='Week Bin')
+fig2 = px.bar(bolognese_df, y='Interconnectedness', x='Week Bin', color="Interconnectedness")
 # fig.show()
 
 fig2.update_traces(yaxis="y2")
