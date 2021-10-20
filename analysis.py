@@ -130,13 +130,20 @@ spAvgPricePerWkBin = sp500AvgPrice(spWkBins, df_sp_price['price'])
 print(f'finished part 1 for analysis range: {xRange} weeks')
 #%% PART 2: CREATE HISTOGRAM OF RETURN PERCENTAGE AND AVERAGE INTERCONNECTEDNESS
 
+#do it using week bins
 returnsHistogramLists = dict()
 
-for steak in negGradsForAllStocks.values():
-    for vals in steak.values():
-        binDex = np.round(int(vals['multiplier']), 3)
-        print(binDex)
-
+for welk in  weekBins.values():
+    for k,v in welk[1].items():
+        grade = np.around(v, 1)
+        if grade in returnsHistogramLists:
+            returnsHistogramLists[grade].append(welk[0])
+        else:
+            returnsHistogramLists[grade] = [welk[0]]
+returnsHistogramLists = {k: v for k, v in sorted(returnsHistogramLists.items(), key=lambda item: item[0]) if k > 0.6 and k < 2}
+returnsHistogramAverages = {k:np.mean(np.array(v)) for k,v in returnsHistogramLists.items()}
+#%%
+returnsHistogramAverages
 #%% PART 3: CREATE THE INVERSE OF THE ABOVE SO PERCENTILES FOR AN INTERCONNECTEDNESS AND PERCENTILES OF THE RETURN VALUE LIST
 interconnectednessHistogram = dict()
 for wek in weekBins.values():
@@ -262,6 +269,16 @@ MultiplierHistogramFiltered = {k:v for k,v in multiplerHistogram.items() if k > 
 #-
 #-
 
+#%% PLOT - RETURN BINS AGAINST AVERAGE INTERCONNECTEDNESS FOR THAT BIN 
+pineapple = [[x, w] for x,w in returnsHistogramAverages.items()]
+
+pineapple_df = pd.DataFrame(pineapple, columns=['Return Multiplier', 'Interconnectedness'])
+pineapple_df.describe()
+fig = px.scatter(pineapple_df, x="Interconnectedness", y="Return Multiplier", color="Return Multiplier")
+fig.show()
+
+# p = np.poly1d(np.polyfit(eggies_df['Interconnectedness'], eggies_df['Return Multiplier'], 1))
+# regr_results = sp.stats.linregress(eggies_df['Interconnectedness'], eggies_df['Return Multiplier'])
 #%% PLOT - TOTAL DATA PLOT WITH STATISTICAL ANALYSIS 
 eggies = [[x, w] for x,w in {k:v for k,v in multiplierNumWeeksAverage.items() if k > 0.6 and k < 2}.items()]
 
