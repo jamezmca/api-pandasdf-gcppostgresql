@@ -236,11 +236,15 @@ for multiplier in multiplierNumWeeksAverage:
                                         '5th': [multiplierNumWeeksAverage[multiplier]]}
 
 MultiplierHistogramFiltered = {k:v for k,v in multiplerHistogram.items() if k > 0.6 and k < 2}
-#%% PART 3: BASELINE CHECk FOR STOCK RECOVERY - CHECK VALUE AFTER 3 MONTHS
+#%% PART 3: CHECK EACH STOCK FOR AVERAGE RETURN AND RISK
+stockRiskAndReward = dict()
+for steak,vals in negGradsForAllStocks.items():
+    for dipsie in vals.values():
+        stockRiskAndReward[steak] = stockRiskAndReward.get(steak, []) + [dipsie['multiplier']]
 
 
 #%% PART 5: CREATE INTERCONNECTEDNESS HISTOGRAM - WEEKBINS NEEDS FIXING
-
+stockRiskAndReward
 #%% PART 6: FIND THE INTERCONNECTEDNESS AND ASSOCIATED RETURN
 
 #%% PART 7: CHECK HOW INTERCONNECTEDNESS REDUCES CHANCE OF A LOSS AND HOW IT COMPARES TO S&P500 IF THEY BOTH DROP
